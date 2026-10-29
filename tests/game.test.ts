@@ -20,6 +20,7 @@ async function database() {
     "005_catalog_schema.sql",
     "006_catalog_data.sql",
     "007_security_hardening.sql",
+    "008_arena_gacha.sql",
   ])
     await db.exec(
       readFileSync(
@@ -85,7 +86,7 @@ test("Catalog, economy, pity and duel invariants", () => {
     race(CATALOG[0], CATALOG[0], () => 0.5).bScore,
   );
   for (const c of CATALOG)
-    for (let t = 0; t < 4; t++)
+    for (let t = 0; t < 8; t++)
       assert.ok(score(c, t) > 0 && score(c, t) <= 100);
 });
 test("PostgreSQL migrations and authenticated transaction scenarios", async (t) => {
@@ -152,12 +153,12 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
       "SQL race math matches frontend for all cards / tracks",
       async () => {
         const r = await db.query<{ id: number; s: string[] }>(
-          "SELECT id, ARRAY[public.race_score(c,0),public.race_score(c,1),public.race_score(c,2),public.race_score(c,3)]::text[] s FROM public.cards c",
+          "SELECT id, ARRAY[public.race_score(c,0),public.race_score(c,1),public.race_score(c,2),public.race_score(c,3),public.race_score(c,4),public.race_score(c,5),public.race_score(c,6),public.race_score(c,7)]::text[] s FROM public.cards c",
         );
         assert.equal(r.rows.length, CATALOG.length);
         const byId = new Map(CATALOG.map((c) => [c.id, c]));
         for (const row of r.rows)
-          for (let track = 0; track < 4; track++)
+          for (let track = 0; track < 8; track++)
             assert.ok(
               Math.abs(Number(row.s[track]) - score(byId.get(row.id)!, track)) <
                 1e-8,
@@ -237,11 +238,19 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
         const other = await owned(db, B, 3);
         await action(db, "CREATE_DUEL", { cardId: aid, bet: 1000 });
         const d = (await snapshot(db)).duels[0];
+        assert.ok(d.track_name);
+        assert.equal(d.creator_card_id, 8);
         await assert.rejects(
           action(db, "LIST", { cardId: aid, price: 1000 }),
           /engagée/,
         );
         await identity(db, B);
+        const dMasked = (await snapshot(db)).duels.find(
+          (x: any) => x.id === d.id,
+        );
+        assert.equal(dMasked.creator_card_id, 0);
+        assert.equal(dMasked.cards.name, "Machine mystère");
+        assert.equal(dMasked.track_name, d.track_name);
         await assert.rejects(
           action(db, "ACCEPT_DUEL", { id: d.id, cardId: other }),
           /même catégorie/,
@@ -251,6 +260,8 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
         ).id;
         const r = await action(db, "ACCEPT_DUEL", { id: d.id, cardId: bid });
         assert.equal(r.duel.pot_won, 1900);
+        assert.equal(r.duel.track_name, d.track_name);
+        assert.equal(r.duel.creator_card_id, 8);
         const sum = (
           await db.query<{ sum: string }>(
             "SELECT sum(cash_balance) sum FROM public.profiles",

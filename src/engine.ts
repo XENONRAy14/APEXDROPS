@@ -49,10 +49,23 @@ export function score(c: Card, track: number) {
     l * weights[3]
   );
 }
-export function race(a: Card, b: Card, rng = random) {
+export function trackIndex(name?: string | null): number {
+  const idx = name ? TRACKS.indexOf(name) : -1;
+  return idx >= 0 ? idx : 0;
+}
+export function race(
+  a: Card,
+  b: Card,
+  rng = random,
+  presetTrack?: string | null,
+) {
   if (a.division !== b.division)
     throw Error("Choisis un véhicule de la même catégorie.");
-  const track = Math.min(TRACKS.length - 1, Math.floor(rng() * TRACKS.length));
+  const preset = presetTrack ? TRACKS.indexOf(presetTrack) : -1;
+  const track =
+    preset >= 0
+      ? preset
+      : Math.min(TRACKS.length - 1, Math.floor(rng() * TRACKS.length));
   const vary = () => 1 - PILOT_VARIANCE / 2 + rng() * PILOT_VARIANCE;
   const aScore = Math.round(score(a, track) * vary() * 100) / 100,
     bScore = Math.round(score(b, track) * vary() * 100) / 100;

@@ -63,6 +63,7 @@ export interface Duel {
   creator_is_foil: boolean;
   bet_amount: number;
   status: string;
+  challenger_name?: string | null;
   track_name: string | null;
   winner_name: string | null;
   creator_score: number | null;
@@ -97,6 +98,8 @@ export interface DuelResult {
   winner_id: string;
   creator_card: string;
   challenger_card: string;
+  creator_card_id?: number;
+  challenger_card_id?: number;
   creator_score: number;
   challenger_score: number;
   pot_won: number;

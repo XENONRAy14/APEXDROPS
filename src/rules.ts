@@ -48,6 +48,20 @@ export const TRACKS = [
   "Hunaudières · Vitesse",
   "Gineste · Technique",
   "Monaco · Précision",
+  "Monza · Pleine charge",
+  "Akina · Descente Touge",
+  "Nürburgring · Nordschleife",
+  "Wangan · Minuit",
+];
+export const TRACK_TAGS = [
+  "Pluie · Châssis & Légèreté",
+  "Ligne droite · Vitesse & Puissance",
+  "Col rapide · Équilibre & Grip",
+  "Urbain · Précision pure",
+  "Pleine charge · Puissance brute",
+  "Touge · Poids plume & Épingles",
+  "Complet · Polyvalence totale",
+  "Autoroute · Vitesse de pointe",
 ];
 // Pondérations [puissance, vitesse, châssis, légèreté] par circuit
 export const TRACK_WEIGHTS = [
@@ -55,6 +69,10 @@ export const TRACK_WEIGHTS = [
   [0.4, 0.45, 0.1, 0.05],
   [0.2, 0.15, 0.45, 0.2],
   [0.1, 0.15, 0.55, 0.2],
+  [0.55, 0.35, 0.05, 0.05],
+  [0.05, 0.05, 0.5, 0.4],
+  [0.25, 0.25, 0.25, 0.25],
+  [0.3, 0.6, 0.05, 0.05],
 ];
 export const SCORE_POWER_REF = 700;
 export const SCORE_SPEED_REF = 370;

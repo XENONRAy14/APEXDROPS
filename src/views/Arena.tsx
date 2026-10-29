@@ -1,15 +1,55 @@
 import {
   ArrowUpRight,
   Clock,
+  EyeOff,
   Flag,
   Plus,
-  ShieldCheck,
   Trophy,
 } from "lucide-react";
 import { CarArt, Empty } from "../components";
-import { DUEL_WINNER_SHARE } from "../rules";
+import {
+  DUEL_WINNER_SHARE,
+  TRACKS,
+  TRACK_TAGS,
+  TRACK_WEIGHTS,
+} from "../rules";
+import { trackIndex } from "../engine";
 import { money } from "../format";
 import type { Duel, Owned, Profile } from "../types";
+
+const STAT_LABELS = ["Puissance", "Vitesse", "Châssis", "Légèreté"] as const;
+
+export function TrackProfile({ trackName }: { trackName?: string | null }) {
+  const idx = trackIndex(trackName);
+  const name = TRACKS[idx];
+  const tag = TRACK_TAGS[idx];
+  const w = TRACK_WEIGHTS[idx];
+  return (
+    <div className="track-banner">
+      <div className="track-banner-head">
+        <span>
+          <Flag size={14} /> CIRCUIT TIRÉ AU SORT
+        </span>
+        <b>{name}</b>
+        <small>{tag}</small>
+      </div>
+      <div className="track-bars">
+        {STAT_LABELS.map((label, i) => {
+          const pct = Math.round(w[i] * 100);
+          return (
+            <div key={label} className={pct >= 35 ? "dominant" : ""}>
+              <span>{label}</span>
+              <div className="track-bar">
+                <i style={{ width: `${Math.min(100, pct * 1.4)}%` }} />
+              </div>
+              <b>{pct}%</b>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function Arena({
   isDemo,
@@ -39,14 +79,14 @@ export function Arena({
       <div className="page-heading">
         <div>
           <span className="eyebrow">
-            CHOISIS TA MACHINE. TROUVE TA TRAJECTOIRE.
+            CIRCUIT CONNU · MACHINE ADVERSE SECRÈTE
           </span>
           <h1>
             L’arène<span>.</span>
           </h1>
           <p>
-            Route, compétition ou moto : les duels se jouent dans la même
-            catégorie.
+            Le circuit est tiré dès l’ouverture du défi. Analyse ses virages,
+            fouille ton garage et garde ta machine secrète jusqu’au départ.
           </p>
         </div>
         <button
@@ -60,13 +100,13 @@ export function Arena({
       <div className="arena-rules">
         <div>
           <Flag />
-          <b>Circuit mystère</b>
-          <span>Tiré au sort après engagement</span>
+          <b>8 circuits typés</b>
+          <span>Annoncé avant de choisir ta voiture</span>
         </div>
         <div>
-          <ShieldCheck />
-          <b>Holo = cosmétique</b>
-          <span>Aucun bonus de performance</span>
+          <EyeOff />
+          <b>Blind pick équitable</b>
+          <span>Voiture adverse dévoilée au départ</span>
         </div>
         <div>
           <Clock />
@@ -90,72 +130,93 @@ export function Arena({
         <span className="count-pill">{open.length} en piste</span>
       </div>
       <div className="duel-grid">
-        {open.map((d) => (
-          <article className="duel-card" key={d.id}>
-            <div className="duel-top">
-              <span className="outline-pill">{d.cards.division}</span>
-              <span>
-                <Clock size={13} />{" "}
-                {Math.max(
-                  0,
-                  Math.ceil(
-                    (new Date(d.expires_at).getTime() - now) / 3600000,
-                  ),
-                )}{" "}
-                h restantes
-              </span>
-            </div>
-            <div className="duel-vehicle">
-              <CarArt card={d.cards} />
-              <div>
-                <small>DÉFI DE {d.creator_name.toUpperCase()}</small>
-                <h3>{d.cards.name}</h3>
-                <p>
-                  {d.cards.power_hp} ch · Châssis {d.cards.handling_score}
-                </p>
+        {open.map((d) => {
+          const mine = d.creator_id === p?.id;
+          return (
+            <article className="duel-card" key={d.id}>
+              <div className="duel-top">
+                <span className="outline-pill">{d.cards.division}</span>
+                <span>
+                  <Clock size={13} />{" "}
+                  {Math.max(
+                    0,
+                    Math.ceil(
+                      (new Date(d.expires_at).getTime() - now) / 3600000,
+                    ),
+                  )}{" "}
+                  h restantes
+                </span>
               </div>
-            </div>
-            <div className="duel-bottom">
-              <div>
-                <small>MISE À SUIVRE</small>
-                <strong>
-                  {money(d.bet_amount)} <span>CR</span>
-                </strong>
+              <TrackProfile trackName={d.track_name} />
+              <div className="duel-vehicle">
+                {mine ? (
+                  <>
+                    <CarArt card={d.cards} />
+                    <div>
+                      <small>TON DÉFI (VISIBLE PAR TOI SEUL)</small>
+                      <h3>{d.cards.name}</h3>
+                      <p>
+                        {d.cards.power_hp} ch · {d.cards.top_speed_kmh} km/h ·
+                        Châssis {d.cards.handling_score}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mystery-car">
+                      <span>?</span>
+                      <small>{d.cards.division.toUpperCase()}</small>
+                    </div>
+                    <div>
+                      <small>DÉFI DE {d.creator_name.toUpperCase()}</small>
+                      <h3>Machine secrète</h3>
+                      <p>
+                        Catégorie <b>{d.cards.division}</b> · Révélée au départ
+                        de la course. Choisis ta meilleure machine pour ce
+                        circuit !
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
-              <button
-                className={`btn ${d.creator_id === p?.id ? "secondary" : "dark"}`}
-                disabled={
-                  busy ||
-                  (d.creator_id !== p?.id &&
-                    ((p?.cash_balance || 0) < d.bet_amount ||
-                      !inv.some(
-                        (u) => u.cards.division === d.cards.division,
-                      )))
-                }
-                onClick={() =>
-                  d.creator_id === p?.id ? onCancel(d) : onChallenge(d)
-                }
-              >
-                {d.creator_id === p?.id
-                  ? "Annuler & rembourser"
-                  : "Relever le défi"}
-                <ArrowUpRight size={16} />
-              </button>
-            </div>
-            <small className="duel-hint">
-              {d.creator_id === p?.id
-                ? "Ta carte est réservée tant que ce défi reste ouvert."
-                : !inv.some((u) => u.cards.division === d.cards.division)
-                  ? `Une carte ${d.cards.division} est nécessaire.`
-                  : `Pot net à gagner : ${money(Math.floor(d.bet_amount * 2 * DUEL_WINNER_SHARE))} CR`}
-            </small>
-          </article>
-        ))}
+              <div className="duel-bottom">
+                <div>
+                  <small>MISE À SUIVRE</small>
+                  <strong>
+                    {money(d.bet_amount)} <span>CR</span>
+                  </strong>
+                </div>
+                <button
+                  className={`btn ${mine ? "secondary" : "primary"}`}
+                  disabled={
+                    busy ||
+                    (!mine &&
+                      ((p?.cash_balance || 0) < d.bet_amount ||
+                        !inv.some(
+                          (u) => u.cards.division === d.cards.division,
+                        )))
+                  }
+                  onClick={() => (mine ? onCancel(d) : onChallenge(d))}
+                >
+                  {mine ? "Annuler & rembourser" : "Choisir ma voiture"}
+                  <ArrowUpRight size={16} />
+                </button>
+              </div>
+              <small className="duel-hint">
+                {mine
+                  ? "Les autres pilotes voient le circuit et la catégorie, mais pas ta voiture."
+                  : !inv.some((u) => u.cards.division === d.cards.division)
+                    ? `Une carte ${d.cards.division} est nécessaire.`
+                    : `Pot net à gagner : ${money(Math.floor(d.bet_amount * 2 * DUEL_WINNER_SHARE))} CR`}
+              </small>
+            </article>
+          );
+        })}
       </div>
       {!open.length && (
         <Empty
           title="La piste est libre."
-          desc="Crée le premier défi du paddock. Ta mise reste remboursable tant qu’aucun rival n’a accepté."
+          desc="Crée le premier défi du paddock : un circuit sera tiré au sort et ta voiture restera secrète jusqu’au départ."
         />
       )}
       <div className="section-heading">
@@ -170,7 +231,8 @@ export function Arena({
             <span>
               <b>{d.track_name}</b>
               <small>
-                {d.creator_score} pts / {d.challenger_score} pts
+                {d.creator_name} ({d.creator_score} pts) vs {d.challenger_name}{" "}
+                ({d.challenger_score} pts)
               </small>
             </span>
             <strong>
@@ -181,8 +243,7 @@ export function Arena({
       </div>
       {!finished.length && (
         <p className="footnote">
-          Tes courses terminées apparaîtront ici. Le challenger voit la carte
-          adverse : choisis les défis qui te conviennent.
+          Tes courses terminées apparaîtront ici avec le circuit et les scores.
         </p>
       )}
     </>

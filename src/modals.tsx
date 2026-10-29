@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowRight, Flag, LogOut, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { ArrowRight, Check, Flag, LogOut, RefreshCw, Search, Trophy } from "lucide-react";
 import { CarArt, Empty, Modal, VehicleCard } from "./components";
-import { RARITY_LABEL, SALVAGE } from "./catalog";
-import { LIST_MAX, LIST_MIN, BET_MAX, BET_MIN } from "./rules";
+import { CATALOG, RARITY_LABEL, SALVAGE, cardById } from "./catalog";
+import { LIST_MAX, LIST_MIN, BET_MAX, BET_MIN, TRACKS } from "./rules";
+import { score, trackIndex } from "./engine";
+import { TrackProfile } from "./views/Arena";
 import { eventNames, money, refUrl } from "./format";
 import type {
   Card,
@@ -300,6 +302,12 @@ export function BuyModal({
   );
 }
 
+function avgTrackScore(c: Card) {
+  let s = 0;
+  for (let t = 0; t < TRACKS.length; t++) s += score(c, t);
+  return s / TRACKS.length;
+}
+
 export function DuelFormModal({
   challenge,
   inv,
@@ -324,24 +332,71 @@ export function DuelFormModal({
   onResult: (r: DuelResult) => void;
 }) {
   const create = !challenge;
+  const [q, setQ] = useState("");
+  const [divFilter, setDivFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("fit");
+  const tIdx = challenge ? trackIndex(challenge.track_name) : -1;
+
+  const metric = (c: Card) =>
+    tIdx >= 0 ? score(c, tIdx) : avgTrackScore(c);
+
+  const pool = useMemo(() => {
+    const filtered = inv.filter(
+      (u) =>
+        (create
+          ? divFilter === "all" || u.cards.division === divFilter
+          : u.cards.division === challenge?.cards.division) &&
+        u.cards.name.toLocaleLowerCase().includes(q.toLocaleLowerCase()),
+    );
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "power") return b.cards.power_hp - a.cards.power_hp;
+      if (sortBy === "speed")
+        return b.cards.top_speed_kmh - a.cards.top_speed_kmh;
+      if (sortBy === "handling")
+        return b.cards.handling_score - a.cards.handling_score;
+      if (sortBy === "light") return a.cards.weight_kg - b.cards.weight_kg;
+      return metric(b.cards) - metric(a.cards);
+    });
+  }, [inv, create, divFilter, challenge, q, sortBy, tIdx]);
+
+  const current =
+    inv.find((u) => u.id === selected) || pool[0] || null;
+
+  useEffect(() => {
+    if (current && current.id !== selected) onSelected(current.id);
+  }, [current, selected, onSelected]);
+
   return (
     <Modal
       title={create ? "Ouvrir un défi" : "Relever le défi"}
+      wide
       onClose={onClose}
     >
-      <p>
-        {create
-          ? "Choisis ton véhicule et une mise. Le circuit sera tiré au sort quand un rival acceptera."
-          : `Face à ${challenge?.cards.name}. Choisis ta carte ${challenge?.cards.division}.`}
-      </p>
+      {challenge ? (
+        <>
+          <TrackProfile trackName={challenge.track_name} />
+          <p className="modal-intro">
+            Défi <b>{challenge.cards.division}</b> de{" "}
+            <b>{challenge.creator_name}</b> · Sa machine est secrète. Choisis la
+            voiture de ton garage la mieux adaptée à ce circuit !
+          </p>
+        </>
+      ) : (
+        <p className="modal-intro">
+          Choisis ta machine et ta mise : l’un des <b>8 circuits</b> sera tiré
+          au sort à l’ouverture, et ta voiture restera secrète pour tes rivaux
+          jusqu’au départ.
+        </p>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (!current) return;
           run(
             create ? "CREATE_DUEL" : "ACCEPT_DUEL",
             create
-              ? { cardId: selected, bet: Number(bet) }
-              : { cardId: selected, id: challenge?.id },
+              ? { cardId: current.id, bet: Number(bet) }
+              : { cardId: current.id, id: challenge?.id },
             (r) => {
               onClose();
               if (r.duel) onResult(r.duel);
@@ -349,26 +404,126 @@ export function DuelFormModal({
           );
         }}
       >
-        <label className="field">
-          Ton véhicule
+        {current && (
+          <div className={`duel-selected-banner rarity-${current.cards.rarity.toLowerCase()}`}>
+            <CarArt card={current.cards} />
+            <div className="duel-selected-info">
+              <span className="eyebrow">
+                MACHINE SÉLECTIONNÉE · {RARITY_LABEL[current.cards.rarity]} ·{" "}
+                {current.cards.division}
+                {current.is_foil ? " · HOLO" : ""}
+              </span>
+              <h3>{current.cards.name}</h3>
+              <div className="duel-selected-stats">
+                <span>
+                  <small>Puissance</small>
+                  <b>{current.cards.power_hp} ch</b>
+                </span>
+                <span>
+                  <small>Vitesse</small>
+                  <b>{current.cards.top_speed_kmh} km/h</b>
+                </span>
+                <span>
+                  <small>Châssis</small>
+                  <b>{current.cards.handling_score}/100</b>
+                </span>
+                <span>
+                  <small>Poids</small>
+                  <b>{current.cards.weight_kg} kg</b>
+                </span>
+              </div>
+            </div>
+            <div className="duel-fit-pill">
+              <small>{challenge ? "SCORE CIRCUIT" : "POLYVALENCE"}</small>
+              <strong>{metric(current.cards).toFixed(1)}</strong>
+              <span>/ 100 pts</span>
+            </div>
+          </div>
+        )}
+
+        <div className="duel-picker-controls">
+          <label className="search">
+            <Search size={16} />
+            <input
+              type="search"
+              placeholder="Chercher un modèle dans ton garage…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </label>
+          {create && (
+            <select
+              value={divFilter}
+              onChange={(e) => setDivFilter(e.target.value)}
+              aria-label="Catégorie"
+            >
+              <option value="all">Toutes catégories</option>
+              <option value="Route">Route</option>
+              <option value="Compétition">Compétition</option>
+              <option value="Moto">Moto</option>
+            </select>
+          )}
           <select
-            required
-            value={selected}
-            onChange={(e) => onSelected(e.target.value)}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            aria-label="Trier par"
           >
-            {inv
-              .filter(
-                (u) =>
-                  create || u.cards.division === challenge?.cards.division,
-              )
-              .map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.cards.name} · {u.cards.division}
-                  {u.is_foil ? " · Holo" : ""}
-                </option>
-              ))}
+            <option value="fit">
+              {challenge ? "Trier : Meilleure sur ce circuit" : "Trier : Polyvalence"}
+            </option>
+            <option value="power">Trier : Puissance (ch)</option>
+            <option value="speed">Trier : Vitesse (km/h)</option>
+            <option value="handling">Trier : Châssis</option>
+            <option value="light">Trier : Plus légère (kg)</option>
           </select>
-        </label>
+        </div>
+
+        <div className="duel-picker-grid" role="listbox" aria-label="Ton garage">
+          {pool.map((u) => {
+            const active = current?.id === u.id;
+            const fit = metric(u.cards);
+            return (
+              <button
+                type="button"
+                key={u.id}
+                role="option"
+                aria-selected={active}
+                className={`duel-pick-card rarity-${u.cards.rarity.toLowerCase()} ${active ? "selected" : ""}`}
+                onClick={() => onSelected(u.id)}
+              >
+                <div className="duel-pick-photo">
+                  <CarArt card={u.cards} />
+                  <span className="duel-pick-fit">{fit.toFixed(1)} pts</span>
+                  {active && (
+                    <span className="duel-pick-check">
+                      <Check size={14} />
+                    </span>
+                  )}
+                </div>
+                <div className="duel-pick-body">
+                  <small>
+                    {RARITY_LABEL[u.cards.rarity]} · {u.cards.division}
+                    {u.is_foil ? " · Holo" : ""}
+                  </small>
+                  <b>{u.cards.name}</b>
+                  <div className="duel-pick-specs">
+                    <span>{u.cards.power_hp} ch</span>
+                    <span>{u.cards.top_speed_kmh} km/h</span>
+                    <span>Châs. {u.cards.handling_score}</span>
+                    <span>{u.cards.weight_kg} kg</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          {!pool.length && (
+            <Empty
+              title="Aucun véhicule correspondant."
+              desc="Change de filtre ou ouvre un booster pour agrandir ton garage."
+            />
+          )}
+        </div>
+
         {create && (
           <label className="field">
             Mise en crédits
@@ -400,13 +555,13 @@ export function DuelFormModal({
         </div>
         <p className="footnote">
           {create
-            ? "La carte ne pourra pas être vendue pendant le défi. Annulation gratuite avant acceptation."
-            : "Le résultat est définitif dès confirmation. La mise est perdue en cas de défaite."}
+            ? "Un exemplaire est réservé pendant le défi. Ta voiture reste masquée aux rivaux jusqu’au départ."
+            : "Départ immédiat : la voiture adverse se retourne et la course se joue sur le circuit annoncé."}
         </p>
-        <button className="btn primary full" disabled={busy || !selected}>
+        <button className="btn primary full" disabled={busy || !current}>
           {create
-            ? "Réserver la mise et ouvrir"
-            : "Confirmer et lancer la course"}
+            ? "Tirer le circuit & ouvrir le défi"
+            : "Révéler la voiture adverse & lancer la course"}
         </button>
       </form>
     </Modal>
@@ -422,40 +577,163 @@ export function DuelResultModal({
   myId: string | undefined;
   onClose: () => void;
 }) {
+  // Phase 0 : carte adverse secrète qui tremble (0–1.1s)
+  // Phase 1 : carte adverse révélée + course par secteurs (1.1–2.7s)
+  // Phase 2 : photo-finish & podium (2.7s+)
+  const [phase, setPhase] = useState<0 | 1 | 2>(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 1100);
+    const t2 = setTimeout(() => setPhase(2), 2700);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+
+  const findCard = (id?: number, name?: string) =>
+    (id ? cardById(id) : undefined) ||
+    CATALOG.find((c) => c.name === name) ||
+    CATALOG[0];
+
+  const creatorCard = findCard(result.creator_card_id, result.creator_card);
+  const challengerCard = findCard(
+    result.challenger_card_id,
+    result.challenger_card,
+  );
+  const won = result.winner_id === myId;
+  const maxScore = Math.max(result.creator_score, result.challenger_score, 1);
+  const cPct = Math.min(100, Math.max(35, (result.creator_score / maxScore) * 100));
+  const chPct = Math.min(100, Math.max(35, (result.challenger_score / maxScore) * 100));
+
   return (
     <Modal
       title={
-        result.winner_id === myId
-          ? "La victoire est à toi."
-          : "La revanche t’attend."
+        phase < 2
+          ? `Départ sur ${result.track_name}…`
+          : won
+            ? "Drapeau à damier · Victoire !"
+            : "Photo-finish · La revanche t’attend."
       }
+      wide
       onClose={onClose}
     >
-      <div className="race-result">
-        <Flag size={40} />
-        <span>{result.track_name}</span>
-        <h3>{result.winner_name} remporte la course</h3>
-        <div>
-          <p>
-            {result.creator_card}
-            <b>{result.creator_score} pts</b>
-          </p>
-          <strong>VS</strong>
-          <p>
-            {result.challenger_card}
-            <b>{result.challenger_score} pts</b>
-          </p>
+      {phase === 2 && won && (
+        <div
+          className="reveal-flash"
+          style={{ background: "#fbbf24" }}
+        />
+      )}
+      <TrackProfile trackName={result.track_name} />
+
+      <div className="duel-showdown">
+        <div className={`showdown-fighter ${ phase === 0 ? "teasing-rival" : "flip-in"}`}>
+          {phase === 0 ? (
+            <div className="card-back teasing high-roll" style={{ minHeight: 230 }}>
+              <span>ADVERSAIRE</span>
+              <b>?</b>
+              <small>RÉVÉLATION DE LA MACHINE…</small>
+            </div>
+          ) : (
+            <div className={`showdown-card rarity-${creatorCard.rarity.toLowerCase()}`}>
+              <CarArt card={creatorCard} />
+              <small>DÉFENSEUR · {RARITY_LABEL[creatorCard.rarity]}</small>
+              <h4>{result.creator_card}</h4>
+              <p>
+                {creatorCard.power_hp} ch · {creatorCard.top_speed_kmh} km/h ·
+                Châssis {creatorCard.handling_score}
+              </p>
+              {phase === 2 && (
+                <strong className="showdown-score">
+                  {result.creator_score} pts
+                </strong>
+              )}
+            </div>
+          )}
         </div>
-        <p>
-          Pot versé au vainqueur : <b>{money(result.pot_won)} CR</b>
-        </p>
-        <small>
-          Score pondéré selon le circuit, puis variation de pilotage de ±3 %.
-          Holographiques sans bonus.
-        </small>
+
+        <div className="showdown-vs">
+          <span>VS</span>
+        </div>
+
+        <div className="showdown-fighter">
+          <div className={`showdown-card rarity-${challengerCard.rarity.toLowerCase()}`}>
+            <CarArt card={challengerCard} />
+            <small>CHALLENGER · {RARITY_LABEL[challengerCard.rarity]}</small>
+            <h4>{result.challenger_card}</h4>
+            <p>
+              {challengerCard.power_hp} ch · {challengerCard.top_speed_kmh} km/h ·
+              Châssis {challengerCard.handling_score}
+            </p>
+            {phase === 2 && (
+              <strong className="showdown-score">
+                {result.challenger_score} pts
+              </strong>
+            )}
+          </div>
+        </div>
       </div>
-      <button className="btn dark full" onClick={onClose}>
-        Retour à l’arène
+
+      {phase >= 1 && (
+        <div className="race-telemetry">
+          <div className="telemetry-head">
+            <span>SECTEUR 1</span>
+            <span>SECTEUR 2</span>
+            <span>ARRIVÉE</span>
+          </div>
+          <div className="telemetry-lane">
+            <small>{result.creator_card}</small>
+            <div className="telemetry-track">
+              <i
+                style={{ width: phase === 1 ? "68%" : `${cPct}%` }}
+                className={
+                  phase === 2 && result.creator_score >= result.challenger_score
+                    ? "lead"
+                    : ""
+                }
+              />
+            </div>
+          </div>
+          <div className="telemetry-lane">
+            <small>{result.challenger_card}</small>
+            <div className="telemetry-track">
+              <i
+                style={{ width: phase === 1 ? "68%" : `${chPct}%` }}
+                className={
+                  phase === 2 && result.challenger_score >= result.creator_score
+                    ? "lead"
+                    : ""
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === 2 ? (
+        <div className="race-result">
+          <Trophy size={34} />
+          <h3>{result.winner_name} remporte la course !</h3>
+          <p>
+            Pot versé au vainqueur : <b>{money(result.pot_won)} CR</b>
+          </p>
+          <small>
+            Score pondéré selon les 4 jauges du circuit ({result.track_name}),
+            puis variation de pilotage de ±3 %.
+          </small>
+        </div>
+      ) : (
+        <p className="modal-intro" style={{ textAlign: "center" }}>
+          {phase === 0
+            ? "Révélation du véhicule adverse sur la grille de départ…"
+            : "Pleine charge dans les secteurs chronométrés…"}
+        </p>
+      )}
+
+      <button
+        className="btn primary full"
+        onClick={() => (phase < 2 ? setPhase(2) : onClose())}
+      >
+        {phase < 2 ? "Passer l’animation" : "Retour à l’arène"}
       </button>
     </Modal>
   );

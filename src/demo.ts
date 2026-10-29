@@ -1,5 +1,5 @@
 import { CATALOG, cardById } from "./catalog";
-import { draw, integer, race, uuid } from "./engine";
+import { draw, integer, race, random, uuid } from "./engine";
 import {
   BET_MAX,
   START_BONUS_PACKS,
@@ -13,6 +13,7 @@ import {
   PACK_COOLDOWN_MS,
   PACK_PRICE,
   SALVAGE,
+  TRACKS,
 } from "./rules";
 import type {
   Action,
@@ -77,7 +78,7 @@ function starter(): GameState {
     creator_is_foil: false,
     bet_amount: [1000, 1500, 2000][i],
     status: "OPEN",
-    track_name: null,
+    track_name: TRACKS[i % TRACKS.length],
     winner_name: null,
     creator_score: null,
     challenger_score: null,
@@ -261,6 +262,8 @@ export async function demoAction(
         )
           throw Error("Trois défis ouverts maximum.");
         credit(s, -bet, action);
+        const pickedTrack =
+          TRACKS[Math.min(TRACKS.length - 1, Math.floor(random() * TRACKS.length))];
         s.duels.unshift({
           id: id(),
           creator_id: "demo",
@@ -269,7 +272,7 @@ export async function demoAction(
           creator_is_foil: u.is_foil,
           bet_amount: bet,
           status: "OPEN",
-          track_name: null,
+          track_name: pickedTrack,
           winner_name: null,
           creator_score: null,
           challenger_score: null,
@@ -277,7 +280,7 @@ export async function demoAction(
           created_at: iso(),
           cards: u.cards,
         });
-        result.message = "Défi créé. Mise réservée pendant 24 h maximum.";
+        result.message = `Défi ouvert sur ${pickedTrack} ! Ta voiture reste secrète jusqu’au départ.`;
       }
     } else if (action === "BUY" || action === "CANCEL_LISTING") {
       const m = s.listings.find(
@@ -310,7 +313,7 @@ export async function demoAction(
           throw Error("Tu ne peux pas affronter ton propre défi.");
         const u = s.inventory.find((u) => u.id === payload.cardId);
         if (!u) throw Error("Sélectionne un véhicule.");
-        const r = race(d.cards, u.cards);
+        const r = race(d.cards, u.cards, random, d.track_name);
         credit(s, -d.bet_amount, action);
         const won = !r.aWins,
           pot = Math.floor(d.bet_amount * 2 * DUEL_WINNER_SHARE);
@@ -331,6 +334,8 @@ export async function demoAction(
           winner_name: d.winner_name!,
           creator_card: d.cards.name,
           challenger_card: u.cards.name,
+          creator_card_id: d.cards.id,
+          challenger_card_id: u.cards.id,
           creator_score: r.aScore,
           challenger_score: r.bScore,
           pot_won: pot,
