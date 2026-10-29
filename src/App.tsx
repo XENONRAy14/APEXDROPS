@@ -30,7 +30,7 @@ import {
 } from "./api";
 import { resetDemo } from "./demo";
 import { CATALOG, SALVAGE } from "./catalog";
-import { PACK_COOLDOWN_MS } from "./rules";
+import { PACK_COOLDOWN_MS, type PackId } from "./rules";
 import { CarArt, FilterBar } from "./components";
 import { money, refUrl } from "./format";
 import {
@@ -86,6 +86,7 @@ export default function App() {
     [history, setHistory] = useState(false),
     [detail, setDetail] = useState<Card | null>(null),
     [draws, setDraws] = useState<Draw[]>([]),
+    [drawPack, setDrawPack] = useState<PackId>("origins"),
     [sell, setSell] = useState<Owned | null>(null),
     [price, setPrice] = useState(""),
     [buy, setBuy] = useState<Listing | null>(null),
@@ -244,6 +245,16 @@ export default function App() {
       setBusy(false);
     }
   }
+
+  const openPack = (pack: PackId) =>
+    void run(
+      "OPEN_PACK",
+      pack === "origins" ? { pack, buy: cooldown > 0 } : { pack, buy: true },
+      (r) => {
+        setDrawPack((r.pack as PackId) || pack);
+        setDraws(r.cards || []);
+      },
+    );
 
   function changeTab(t: Tab) {
     setTab(t);
@@ -584,12 +595,7 @@ export default function App() {
                   busy={busy}
                   heroCard={heroCard}
                   onDetail={setDetail}
-                  onOpenPack={() =>
-                    void run("OPEN_PACK", {}, (r) => {
-                      setDraws(r.cards || []);
-                    })
-                  }
-                  onBuyPack={() => setConfirm("pack")}
+                  onOpenPack={openPack}
                   onGuide={() => setGuide(true)}
                   goGarage={() => changeTab("garage")}
                   goArena={() => changeTab("arena")}
@@ -701,7 +707,7 @@ export default function App() {
                   disabled={busy}
                   onClick={() =>
                     tab === "paddock" && ready > 0
-                      ? void run("OPEN_PACK", {}, (r) => setDraws(r.cards || []))
+                      ? openPack("origins")
                       : changeTab("paddock")
                   }
                   aria-label="Paddock & boosters"
@@ -753,6 +759,7 @@ export default function App() {
       {draws.length > 0 && (
         <DrawsModal
           draws={draws}
+          pack={drawPack}
           onInspect={(d) => {
             setDraws([]);
             setDetail(d);
@@ -822,11 +829,7 @@ export default function App() {
               changeTab("paddock");
               setToast("La démo est prête pour un nouveau départ.");
             } else
-              void run(
-                confirm === "recycle" ? "QUICK_SELL" : "BUY_PACK",
-                {},
-                () => setConfirm(null),
-              );
+              void run("QUICK_SELL", {}, () => setConfirm(null));
           }}
         />
       )}

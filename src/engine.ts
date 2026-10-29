@@ -2,6 +2,7 @@ import { CATALOG } from "./catalog";
 import {
   FOIL_RATE,
   LEAGUE_MAX_RANK,
+  PACKS,
   PILOT_VARIANCE,
   PIT_COOLDOWN_MS,
   PITY_LIMIT,
@@ -12,6 +13,7 @@ import {
   TRACK_WEIGHTS,
   TRACKS,
   type League,
+  type PackId,
 } from "./rules";
 import type { Card, Owned, Rarity } from "./types";
 
@@ -42,26 +44,68 @@ export function pitRemainingSec(u: Owned, now = Date.now()): number {
 export function random() {
   return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
 }
+const JDM_RE =
+  /\b(toyota|nissan|honda|mazda|subaru|mitsubishi|lexus|acura|datsun|suzuki|isuzu|daihatsu|infiniti|autozam|tom's|nismo)\b/i;
+const INITIAL_D_RE =
+  /\b(AE86|Trueno|Levin|RX-7|FD3S|FC3S|Skyline|GT-R|Silvia|S13|S14|S15|180SX|240SX|Impreza|Lancer|Civic|Integra|NSX|S2000|MR2|MR-S|Supra|Celica|Altezza|Chaser|Miata|MX-5|Cappuccino|86|GR86|BRZ)\b/i;
+const MUSCLE_RE =
+  /\b(mustang|camaro|corvette|charger|challenger|viper|firebird|trans am|gto|chevelle|impala|torino|barracuda|cuda|road runner|thunderbird|cougar|shelby|cobra|gt40|ford gt|saleen|hennessey|cadillac|buick|pontiac|oldsmobile|plymouth|dodge|mercury|amc)\b/i;
+const EURO_RE =
+  /\b(ferrari|lamborghini|porsche|mclaren|bugatti|pagani|koenigsegg|aston martin|maserati|alfa romeo|lotus|alpine|lancia|bmw|mercedes|audi|jaguar|bentley|rolls-royce)\b/i;
+
+export function packPool(packId: PackId = "origins"): Card[] {
+  const hay = (c: Card) => `${c.brand || ""} ${c.name}`;
+  if (packId === "jdm")
+    return CATALOG.filter((c) => c.division === "Route" && JDM_RE.test(hay(c)));
+  if (packId === "initiald")
+    return CATALOG.filter(
+      (c) => c.division === "Route" && INITIAL_D_RE.test(c.name),
+    );
+  if (packId === "muscle")
+    return CATALOG.filter(
+      (c) => c.division === "Route" && MUSCLE_RE.test(hay(c)),
+    );
+  if (packId === "f1")
+    return CATALOG.filter((c) => c.division === "Compétition");
+  if (packId === "moto") return CATALOG.filter((c) => c.division === "Moto");
+  if (packId === "euro")
+    return CATALOG.filter(
+      (c) => c.division === "Route" && EURO_RE.test(hay(c)),
+    );
+  if (packId === "apex")
+    return CATALOG.filter(
+      (c) =>
+        c.rarity === "Epic" ||
+        c.rarity === "Legendary" ||
+        c.rarity === "Mythic",
+    );
+  return CATALOG;
+}
+
 export function draw(
   pity: number,
   rng = random,
+  packId: PackId = "origins",
 ): { card: Card; foil: boolean; pity: number } {
+  const spec = PACKS.find((p) => p.id === packId) || PACKS[0];
   const r = rng();
   let rarity: Rarity;
   if (pity >= PITY_LIMIT - 1)
     rarity = rng() < PITY_MYTHIC_RATE ? "Mythic" : "Legendary";
   else {
     rarity = "Common";
-    for (const [name, threshold] of RARITY_ODDS)
+    for (const [name, threshold] of spec.odds || RARITY_ODDS)
       if (r < threshold) {
         rarity = name;
         break;
       }
   }
-  const pool = CATALOG.filter((c) => c.rarity === rarity);
+  const themePool = packPool(packId);
+  let pool = themePool.filter((c) => c.rarity === rarity);
+  if (!pool.length) pool = CATALOG.filter((c) => c.rarity === rarity);
   return {
     card: pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))],
-    foil: rng() < FOIL_RATE,
+    foil: rng() < (spec.foilRate ?? FOIL_RATE),
     pity: rarity === "Legendary" || rarity === "Mythic" ? 0 : pity + 1,
   };
 }

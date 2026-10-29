@@ -39,7 +39,9 @@ Vérification avant de conclure une tâche : `npm run check && npm test && npm r
   - `001` schéma V3, `002` durcissement (RLS, RPC, ledger), `003` 24 cartes d'origine ;
   - `004_concurrency.sql` : verrous par compte. Ordre fixe : ligne marché/duel → profils par id croissant (`lock_profiles`). Plus de verrou global ;
   - `005_catalog_schema.sql` : colonnes `wikidata_id`, `brand`, `image_page`, `image_credit` ; `game_state` renvoie `catalog_size` au lieu du catalogue ;
-  - `006_catalog_data.sql` : **généré** par le script, idempotent, ne pas éditer à la main.
+  - `006_catalog_data.sql` (+ splits `006a`–`006g`) : **généré** par le script, idempotent, ne pas éditer à la main ;
+  - `007` durcissement (pseudos, parrainage, quota duels) ; `008` arène gacha (8 circuits, carte adverse masquée) ; `009` fair-play (ligues de rareté, physique touge/pluie, stand 30 min) ;
+  - `010_themed_packs.sql` : 8 caisses thématiques (`in_pack_theme` + `OPEN_PACK` avec `payload.pack`), prix/probas miroir de `PACKS` dans `src/rules.ts`.
 
 ## Catalogue (≈ 5 500 cartes)
 

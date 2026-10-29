@@ -21,6 +21,7 @@ Le dossier `dist/` est statique : dépose-le sur n'importe quel hébergeur (Verc
    `supabase/migrations/001_base.sql` → `002_hardening.sql` → `003_catalog.sql` → `004_concurrency.sql` → `005_catalog_schema.sql`
    Puis le catalogue en 7 parties (le SQL Editor web refuse `006_catalog_data.sql` entier car >1 Mo) :
    `006a_catalog_part1.sql` → `006b` → `006c` → `006d` → `006e` → `006f` → `006g`
+   Puis les évolutions de gameplay : `007_security_hardening.sql` → `008_arena_gacha.sql` → `009_arena_fairplay.sql` → `010_themed_packs.sql`
    (Sur `001`, clique **Run without RLS** quand Supabase demande — c'est `002` qui active le RLS.)
 3. Vérifie : `select count(*) from cards;` doit renvoyer 5513.
 

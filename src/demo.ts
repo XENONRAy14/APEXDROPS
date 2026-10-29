@@ -21,8 +21,10 @@ import {
   LIST_MIN,
   PACK_COOLDOWN_MS,
   PACK_PRICE,
+  PACKS,
   SALVAGE,
   TRACKS,
+  type PackId,
 } from "./rules";
 import type {
   Action,
@@ -194,16 +196,21 @@ export async function demoAction(
     let result: ActionResult = {};
     const p = s.profile;
     if (action === "OPEN_PACK") {
-      const bonus =
-        Date.now() - new Date(p.last_pack_opened_at).getTime() <
-        PACK_COOLDOWN_MS;
-      if (bonus && p.bonus_packs < 1)
-        throw Error("Ton booster gratuit n’est pas encore prêt.");
-      if (bonus) p.bonus_packs--;
-      else p.last_pack_opened_at = iso();
+      const packId = (payload.pack as PackId) || "origins";
+      const spec = PACKS.find((x) => x.id === packId);
+      if (!spec) throw Error("Booster inconnu.");
+      if (spec.id === "origins") {
+        const cooling =
+          Date.now() - new Date(p.last_pack_opened_at).getTime() <
+          PACK_COOLDOWN_MS;
+        if (!cooling) p.last_pack_opened_at = iso();
+        else if (p.bonus_packs >= 1) p.bonus_packs--;
+        else if (payload.buy) credit(s, -spec.price, "BUY_PACK");
+        else throw Error("Ton booster gratuit n’est pas encore prêt.");
+      } else credit(s, -spec.price, "BUY_PACK");
       result.cards = [];
       for (let i = 0; i < 3; i++) {
-        const d = draw(p.pity_counter);
+        const d = draw(p.pity_counter, random, spec.id);
         p.pity_counter = d.pity;
         result.cards.push({
           ...d.card,
@@ -211,6 +218,7 @@ export async function demoAction(
           is_new: add(s, d.card.id, d.foil),
         });
       }
+      result.pack = spec.id;
     } else if (action === "BUY_PACK") {
       credit(s, -PACK_PRICE, action);
       p.bonus_packs++;

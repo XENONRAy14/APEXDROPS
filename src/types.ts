@@ -120,6 +120,7 @@ export type Action =
   | "CLAIM_REFERRAL";
 export interface ActionResult {
   cards?: Draw[];
+  pack?: string;
   duel?: DuelResult;
   message?: string;
 }

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -7,7 +8,8 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { PACK_PRICE } from "../rules";
+import { PACKS, type PackId, type PackSpec } from "../rules";
+import { packPool } from "../engine";
 import { CarArt, Empty, TrackArt, VehicleCard } from "../components";
 import { money, refUrl, time } from "../format";
 import type { Card, Owned, Profile } from "../types";
@@ -22,7 +24,6 @@ export function Paddock({
   heroCard,
   onDetail,
   onOpenPack,
-  onBuyPack,
   onGuide,
   goGarage,
   goArena,
@@ -36,13 +37,34 @@ export function Paddock({
   busy: boolean;
   heroCard: Card;
   onDetail: (c: Card) => void;
-  onOpenPack: () => void;
-  onBuyPack: () => void;
+  onOpenPack: (pack: PackId) => void;
   onGuide: () => void;
   goGarage: () => void;
   goArena: () => void;
   onCopy: () => void;
 }) {
+  const cash = p?.cash_balance || 0;
+  const bonus = p?.bonus_packs || 0;
+  const pools = useMemo(
+    () => Object.fromEntries(PACKS.map((s) => [s.id, packPool(s.id).length])),
+    [],
+  );
+
+  const packButton = (spec: PackSpec) => {
+    if (spec.id === "origins") {
+      if (cooldown === 0)
+        return { label: "Ouvrir gratuitement", disabled: busy };
+      if (bonus > 0)
+        return { label: `Bonus · ${bonus} en stock`, disabled: busy };
+      return cash >= spec.price
+        ? { label: `Ouvrir · ${money(spec.price)} CR`, disabled: busy }
+        : { label: `Gratuit dans ${time(cooldown)}`, disabled: true };
+    }
+    return cash >= spec.price
+      ? { label: `Ouvrir · ${money(spec.price)} CR`, disabled: busy }
+      : { label: `${money(spec.price)} CR · insuffisant`, disabled: true };
+  };
+
   return (
     <>
       <div className="page-heading">
@@ -119,7 +141,7 @@ export function Paddock({
                 <br />
                 DROPS
               </span>
-              <span className="pack-symbol">A</span>
+              <span className="pack-symbol">源</span>
               <span className="pack-caption">
                 ORIGINS — VOL. 01
                 <br />
@@ -128,21 +150,25 @@ export function Paddock({
               <span className="pack-ridges bottom" />
             </div>
             <span className="pack-count">
-              <Sparkles size={13} /> {p?.bonus_packs} bonus
+              <Sparkles size={13} /> {bonus} bonus
             </span>
           </div>
           <button
             className="btn dark full"
-            disabled={busy || (cooldown > 0 && !p?.bonus_packs)}
-            onClick={onOpenPack}
+            disabled={
+              busy || (cooldown > 0 && !bonus && cash < PACKS[0].price)
+            }
+            onClick={() => onOpenPack("origins")}
           >
             {busy
               ? "Ouverture…"
               : cooldown === 0
                 ? "Ouvrir mon booster gratuit"
-                : p?.bonus_packs
+                : bonus > 0
                   ? "Utiliser un booster bonus"
-                  : `Prochain booster · ${time(cooldown)}`}
+                  : cash >= PACKS[0].price
+                    ? `Ouvrir · ${money(PACKS[0].price)} CR`
+                    : `Prochain booster · ${time(cooldown)}`}
             <ArrowRight size={18} />
           </button>
           <div className="booster-sub">
@@ -150,12 +176,9 @@ export function Paddock({
             {cooldown === 0
               ? "Un booster gratuit toutes les 10 min"
               : `Gratuit dans ${time(cooldown)}`}
-            <button
-              disabled={busy || (p?.cash_balance || 0) < PACK_PRICE}
-              onClick={onBuyPack}
-            >
-              + Acheter
-            </button>
+            <span className="booster-sub-note">
+              Le booster Origins gratuit puise dans les 5 513 machines.
+            </span>
           </div>
         </section>
       </div>
@@ -200,6 +223,65 @@ export function Paddock({
           </div>
         </div>
       </div>
+      <div className="section-heading packs-heading">
+        <div>
+          <span className="eyebrow">LES CAISSES DU PADDOCK</span>
+          <h2>Choisis ton booster</h2>
+          <p className="packs-sub">
+            Chaque caisse puise dans son univers. Plus les chances de
+            légendaires sont hautes, plus le prix grimpe — la bande défile,
+            la machine s’arrête.
+          </p>
+        </div>
+        <span className="packs-balance">
+          Solde · <b>{money(cash)} CR</b>
+        </span>
+      </div>
+      <div className="packs-grid">
+        {PACKS.map((spec, i) => {
+          const btn = packButton(spec);
+          return (
+            <article
+              key={spec.id}
+              className={`pack-card ${spec.id === "apex" ? "vip" : ""}`}
+              style={{ background: spec.gradient }}
+            >
+              <span
+                className="pack-kanji"
+                style={{ color: spec.accent }}
+                aria-hidden="true"
+              >
+                {spec.symbol}
+              </span>
+              <span
+                className="pack-edition"
+                style={{ color: spec.accent }}
+              >
+                CAISSE {String(i + 1).padStart(2, "0")}
+                {spec.freeEligible ? " · GRATUITE / 10 MIN" : ""}
+              </span>
+              <h3>{spec.name}</h3>
+              <p>{spec.subtitle}</p>
+              <span className="pack-odds">
+                <Sparkles size={11} /> {spec.oddsLabel}
+              </span>
+              <div className="pack-card-bottom">
+                <span className="pack-pool">
+                  {(pools[spec.id] || 0).toLocaleString("fr-FR")} véhicules
+                </span>
+                <button
+                  className="pack-open"
+                  style={{ background: spec.accent }}
+                  disabled={btn.disabled}
+                  onClick={() => onOpenPack(spec.id)}
+                >
+                  {btn.label}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
       <div className="section-heading">
         <div>
           <span className="eyebrow">LA COLLECTION PREND VIE</span>
@@ -235,7 +317,7 @@ export function Paddock({
               <br />À toi de choisir la machine.
             </h2>
             <p>
-              Trois catégories, quatre circuits.
+              Huit circuits, trois ligues.
               <br />
               Relève un défi et trouve ta trajectoire.
             </p>

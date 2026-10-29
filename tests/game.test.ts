@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { CATALOG, PACK_PRICE, SALVAGE, loadCatalog } from "../src/catalog";
-import { draw, race, score, integer } from "../src/engine";
+import { draw, packPool, race, score, integer } from "../src/engine";
+import { PACKS } from "../src/rules";
 await loadCatalog();
 const A = "11111111-1111-4111-8111-111111111111",
   B = "22222222-2222-4222-8222-222222222222";
@@ -22,6 +23,7 @@ async function database() {
     "007_security_hardening.sql",
     "008_arena_gacha.sql",
     "009_arena_fairplay.sql",
+    "010_themed_packs.sql",
   ])
     await db.exec(
       readFileSync(
@@ -80,6 +82,20 @@ test("Catalog, economy, pity and duel invariants", () => {
   assert.equal(draw(29, () => 0.5).card.rarity, "Legendary");
   assert.equal(draw(29, () => 0.01).card.rarity, "Mythic");
   assert.equal(draw(29, () => 0.5).pity, 0);
+  // Boosters thématiques : chaque pool est non vide et filtré sur son univers.
+  for (const spec of PACKS) assert.ok(packPool(spec.id).length > 10, spec.id);
+  assert.ok(
+    packPool("apex").every(
+      (c) => c.rarity === "Epic" || c.rarity === "Legendary" || c.rarity === "Mythic",
+    ),
+  );
+  assert.ok(packPool("moto").every((c) => c.division === "Moto"));
+  assert.ok(packPool("f1").every((c) => c.division === "Compétition"));
+  assert.ok(packPool("initiald").some((c) => c.id === 2)); // l'AE86 est bien dans la caisse Initial D
+  assert.equal(draw(0, () => 0.4, "apex").card.rarity, "Epic");
+  assert.equal(draw(0, () => 0.01, "apex").card.rarity, "Mythic");
+  assert.equal(draw(29, () => 0.5, "apex").card.rarity, "Legendary");
+  assert.ok(packPool("jdm").includes(draw(0, () => 0.4, "jdm").card));
   assert.throws(() => integer(1.2, 1, 10));
   assert.throws(() => race(CATALOG[0], CATALOG[2]));
   assert.equal(
@@ -154,7 +170,50 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
     await t.test("cannot spend unavailable cash", async () => {
       await assert.rejects(action(db, "BUY_PACK"), /15 000/);
       assert.equal((await snapshot(db)).profile.cash_balance, 5000);
+      await assert.rejects(
+        action(db, "OPEN_PACK", { pack: "apex" }),
+        /55 000/,
+      );
+      await assert.rejects(
+        action(db, "OPEN_PACK", { pack: "nascar" }),
+        /Booster inconnu/,
+      );
     });
+    await t.test(
+      "themed packs charge their price and only draw from their universe",
+      async () => {
+        await db.exec(
+          `UPDATE public.profiles SET cash_balance=200000 WHERE id='${A}'`,
+        );
+        const vip = await action(db, "OPEN_PACK", { pack: "apex" });
+        assert.equal(vip.pack, "apex");
+        assert.equal(vip.cards.length, 3);
+        for (const c of vip.cards)
+          assert.ok(
+            ["Epic", "Legendary", "Mythic"].includes(c.rarity),
+            c.rarity,
+          );
+        const theme = await db.query<{ ok: boolean }>(
+          "SELECT bool_and(public.in_pack_theme(cards,'apex')) ok FROM public.cards WHERE id = ANY($1::int[])",
+          [vip.cards.map((c: any) => c.id)],
+        );
+        assert.equal(theme.rows[0].ok, true);
+        assert.equal((await snapshot(db)).profile.cash_balance, 145000);
+        const req = crypto.randomUUID();
+        const j1 = await action(db, "OPEN_PACK", { pack: "jdm" }, req);
+        const j2 = await action(db, "OPEN_PACK", { pack: "jdm" }, req);
+        assert.deepEqual(j1, j2);
+        const jdm = await db.query<{ ok: boolean }>(
+          "SELECT bool_and(public.in_pack_theme(cards,'jdm')) ok FROM public.cards WHERE id = ANY($1::int[])",
+          [j1.cards.map((c: any) => c.id)],
+        );
+        assert.equal(jdm.rows[0].ok, true);
+        assert.equal((await snapshot(db)).profile.cash_balance, 145000 - 18000);
+        await db.exec(
+          `UPDATE public.profiles SET cash_balance=5000 WHERE id='${A}'`,
+        );
+      },
+    );
     await t.test(
       "SQL race math matches frontend for all cards / tracks",
       async () => {

@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowRight, Check, Flag, LogOut, RefreshCw, Search, Trophy } from "lucide-react";
-import { CarArt, Empty, Modal, VehicleCard } from "./components";
+import { ArrowRight, Check, LogOut, RefreshCw, Search, Trophy } from "lucide-react";
+import { CarArt, Empty, Modal } from "./components";
 import { CATALOG, RARITY_LABEL, SALVAGE, cardById } from "./catalog";
-import { LIST_MAX, LIST_MIN, BET_MAX, BET_MIN, LEAGUE_LABEL, TRACKS } from "./rules";
+import {
+  LIST_MAX,
+  LIST_MIN,
+  BET_MAX,
+  BET_MIN,
+  LEAGUE_LABEL,
+  PACKS,
+  TRACKS,
+  type PackId,
+} from "./rules";
 import {
   canEnterLeague,
   leagueForRarity,
+  packPool,
   pitRemainingSec,
   score,
   trackIndex,
@@ -90,125 +100,188 @@ export function DetailModal({
   );
 }
 
-// Durée du suspense avant le retournement, selon la rareté.
-const TEASE_MS: Record<Rarity, number> = {
-  Common: 700,
-  Rare: 950,
-  Epic: 1500,
-  Legendary: 2000,
-  Mythic: 2500,
-};
 const HIGH_ROLL = new Set<Rarity>(["Epic", "Legendary", "Mythic"]);
+// Rouleau horizontal façon caisse CS:GO : la bande défile puis s'arrête
+// pile sous le pointeur, sur la carte réellement tirée par le serveur.
+const STRIP_LEN = 40;
+const STOP_IDX = 32;
+const ITEM_W = 128; // 120 px de carte + 8 px d'espace
+const ROLL_MS = 4800;
 
 export function DrawsModal({
   draws,
+  pack,
   onInspect,
   onDone,
   onClose,
 }: {
   draws: Draw[];
+  pack: PackId;
   onInspect: (d: Draw) => void;
   onDone: () => void;
   onClose: () => void;
 }) {
-  const [shown, setShown] = useState<Set<number>>(new Set());
-  const [teasing, setTeasing] = useState<number | null>(null);
+  const spec = PACKS.find((s) => s.id === pack) || PACKS[0];
+  const pool = useMemo(() => packPool(spec.id), [spec.id]);
+  const strips = useMemo(
+    () =>
+      draws.map((d) => {
+        const items: Card[] = [];
+        for (let i = 0; i < STRIP_LEN; i++)
+          items.push(
+            i === STOP_IDX
+              ? d
+              : pool[Math.floor(Math.random() * pool.length)] || d,
+          );
+        return items;
+      }),
+    [draws, pool],
+  );
+  const [instant] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+  );
+  const [step, setStep] = useState(0);
+  const [landed, setLanded] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
-  const [mass, setMass] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const viewport = useRef<HTMLDivElement>(null);
+  const strip = useRef<HTMLDivElement>(null);
+  const done = instant || step >= draws.length;
 
-  const startReveal = (i: number) => {
-    if (shown.has(i) || teasing !== null) return;
-    const d = draws[i];
-    setTeasing(i);
-    timer.current = setTimeout(() => {
-      setShown((s) => new Set(s).add(i));
-      setTeasing(null);
-      if (d.is_foil || d.rarity === "Legendary" || d.rarity === "Mythic") {
+  useEffect(() => {
+    if (done) return;
+    const el = strip.current,
+      vp = viewport.current;
+    if (!el || !vp) return;
+    setLanded(false);
+    el.style.transition = "none";
+    el.style.transform = "translateX(0px)";
+    const jitter = Math.random() * 76 - 38;
+    const target = -(STOP_IDX * ITEM_W) + vp.clientWidth / 2 - 60 + jitter;
+    const raf = requestAnimationFrame(() => {
+      el.style.transition = `transform ${ROLL_MS}ms cubic-bezier(.1,.78,.08,1)`;
+      el.style.transform = `translateX(${target}px)`;
+    });
+    const t = setTimeout(() => {
+      setLanded(true);
+      const d = draws[step];
+      if (d.is_foil || HIGH_ROLL.has(d.rarity)) {
         setFlash(d.color);
         setTimeout(() => setFlash(null), 750);
       }
-    }, TEASE_MS[d.rarity]);
-  };
+    }, ROLL_MS + 120);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [step, done, draws]);
+
+  useEffect(() => {
+    if (!landed || done) return;
+    const t = setTimeout(() => setStep((s) => s + 1), 1500);
+    return () => clearTimeout(t);
+  }, [landed, done]);
+
   const revealAll = () => {
-    clearTimeout(timer.current);
-    setTeasing(null);
-    setMass(true);
-    setShown(new Set(draws.map((_, i) => i)));
+    setLanded(true);
+    setStep(draws.length);
   };
-  const done = shown.size === draws.length;
 
   return (
-    <Modal title="Ton booster Origins" wide onClose={onClose}>
+    <Modal title={spec.name} wide onClose={onClose}>
       {flash && <div className="reveal-flash" style={{ background: flash }} />}
-      <p className="modal-intro">
-        {done
-          ? "Trois nouvelles histoires pour ton garage."
-          : `${shown.size}/3 révélées · touche une carte pour la retourner.`}
-      </p>
-      <div className="reveal-grid">
-        {draws.map((d, i) =>
-          shown.has(i) ? (
-            <div
-              className={`revealed-card flip-in rarity-${d.rarity.toLowerCase()}`}
-              style={mass ? { animationDelay: `${i * 140}ms` } : undefined}
-              key={i}
-            >
-              <VehicleCard
-                card={d}
-                foil={d.is_foil}
-                onInspect={() => onInspect(d)}
-              />
-              <span className={`new-badge ${d.is_new ? "" : "duplicate"}`}>
-                {d.is_new ? "NOUVELLE CARTE" : "DOUBLON"}
-                {d.is_foil ? " · HOLO" : ""}
-              </span>
-            </div>
-          ) : teasing === i ? (
-            <div
-              key={i}
-              className={`card-back teasing ${HIGH_ROLL.has(d.rarity) ? "high-roll" : ""}`}
-              style={{ "--rc": d.color } as CSSProperties}
-              aria-live="polite"
-            >
-              <span>
-                APEX
-                <br />
-                DROPS
-              </span>
-              <b>A</b>
-              <small>RÉVÉLATION…</small>
-            </div>
-          ) : (
+      <div className="case-head">
+        <span
+          className="case-kanji"
+          style={{ background: spec.gradient, color: spec.accent }}
+          aria-hidden="true"
+        >
+          {spec.symbol}
+        </span>
+        <div>
+          <b>Caisse {spec.name}</b>
+          <small>
+            {done
+              ? "Trois machines rejoignent ton garage."
+              : `Carte ${Math.min(step + 1, draws.length)} / ${draws.length} · la bande ralentit sous le laser…`}
+          </small>
+        </div>
+        {!done && <span className="case-live">EN DIRECT</span>}
+      </div>
+      {!done && (
+        <div
+          className="roulette-viewport"
+          ref={viewport}
+          style={{ "--accent": spec.accent } as CSSProperties}
+        >
+          <span className="roulette-pointer" aria-hidden="true" />
+          <div className="roulette-strip" ref={strip}>
+            {strips[step].map((c, i) => (
+              <div
+                key={i}
+                className={`roulette-item rarity-${c.rarity.toLowerCase()} ${
+                  landed && i === STOP_IDX ? "winner" : ""
+                }`}
+              >
+                <CarArt card={c} />
+                <span>{c.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {landed && !done && (
+        <p
+          className={`case-win rarity-${draws[step].rarity.toLowerCase()}`}
+          aria-live="polite"
+        >
+          <Check size={15} /> {draws[step].name}
+          {draws[step].is_foil ? " · HOLO" : ""} —{" "}
+          {draws[step].is_new ? "nouvelle carte !" : "doublon"}
+        </p>
+      )}
+      <div className="case-slots">
+        {draws.map((d, i) => {
+          const revealed = instant || i < step || (i === step && landed);
+          return revealed ? (
             <button
               key={i}
-              className="card-back"
-              onClick={() => startReveal(i)}
-              aria-label={`Révéler la carte ${i + 1}`}
+              className={`case-slot hit rarity-${d.rarity.toLowerCase()} ${
+                d.is_foil ? "foil" : ""
+              }`}
+              onClick={() => onInspect(d)}
             >
-              <span>
-                APEX
-                <br />
-                DROPS
-              </span>
-              <b>A</b>
-              <small>TOUCHER POUR RÉVÉLER</small>
+              <CarArt card={d} />
+              <b>{d.name}</b>
+              <small>
+                {d.is_new ? "NOUVELLE CARTE" : "DOUBLON"}
+                {d.is_foil ? " · HOLO" : ""}
+              </small>
             </button>
-          ),
-        )}
+          ) : (
+            <div
+              key={i}
+              className={`case-slot ${i === step ? "rolling" : "waiting"}`}
+            >
+              <b>?</b>
+              <small>{i === step ? "DÉROULEMENT…" : "EN ATTENTE"}</small>
+            </div>
+          );
+        })}
       </div>
       <div className="modal-actions">
         <button
           className="btn primary"
           onClick={() => (done ? onDone() : revealAll())}
         >
-          {done ? "Voir mon garage" : "Tout révéler"} <ArrowRight size={17} />
+          {done ? "Voir mon garage" : "Passer l’animation"}{" "}
+          <ArrowRight size={17} />
         </button>
       </div>
       <p className="footnote">
-        Les trois cartes sont déjà enregistrées. Tu peux fermer cette fenêtre
-        sans les perdre.
+        Les trois cartes sont déjà enregistrées : la bande n’est que
+        l’habillage du tirage validé par le serveur.
       </p>
     </Modal>
   );
@@ -879,7 +952,7 @@ export function DuelResultModal({
   );
 }
 
-export type ConfirmKind = "recycle" | "pack" | "reset";
+export type ConfirmKind = "recycle" | "reset";
 
 export function ConfirmModal({
   kind,
@@ -901,18 +974,14 @@ export function ConfirmModal({
       title={
         kind === "recycle"
           ? "Recycler les doublons ?"
-          : kind === "pack"
-            ? "Acheter un booster bonus ?"
-            : "Recommencer la démo ?"
+          : "Recommencer la démo ?"
       }
       onClose={onClose}
     >
       <p>
         {kind === "recycle"
           ? `${duplicates} exemplaires seront recyclés pour ${money(recycleValue)} crédits. Un exemplaire de chaque variante est conservé. Les favoris sont protégés.`
-          : kind === "pack"
-            ? `15 000 crédits seront déduits. Le booster rejoint tes bonus et contient trois cartes aléatoires.`
-            : "Ta progression locale sera effacée et le garage de départ restauré."}
+          : "Ta progression locale sera effacée et le garage de départ restauré."}
       </p>
       <div className="modal-actions">
         <button className="btn secondary" onClick={onClose}>
@@ -1067,9 +1136,14 @@ export function GuideModal({
           <span className="guide-number">01</span>
           <h3>Collectionne</h3>
           <p>
-            Un booster gratuit toutes les 10 minutes, trois cartes par
-            booster. Les bonus permettent d’ouvrir sans attendre. Le gratuit
-            est toujours utilisé en premier.
+            Un booster Origins gratuit toutes les 10 minutes, trois cartes
+            par booster. Les bonus permettent d’ouvrir sans attendre. Le
+            gratuit est toujours utilisé en premier.
+          </p>
+          <p>
+            Sept caisses thématiques (JDM, Muscle, MotoGP, F1 &amp; Le Mans,
+            Initial D, Euro Prestige, APEX VIP) s’achètent en crédits : plus
+            les taux de rares sont hauts, plus la caisse coûte cher.
           </p>
           <p>
             30 tirages sans légendaire ni mythique au maximum. Le 30e donne 90
