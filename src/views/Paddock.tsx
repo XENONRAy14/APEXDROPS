@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { PACK_PRICE } from "../rules";
 import { CarArt, Empty, TrackArt, VehicleCard } from "../components";
-import { money, time } from "../format";
+import { money, refUrl, time } from "../format";
 import type { Card, Owned, Profile } from "../types";
 
 export function Paddock({
@@ -281,7 +281,7 @@ export function Paddock({
           </p>
         </div>
         <div className="referral-actions">
-          <code>{`${location.origin}/?ref=${p?.referral_code}`}</code>
+          <code>{refUrl(p?.referral_code)}</code>
           <button className="btn primary" onClick={onCopy}>
             Copier mon lien ({p?.referrals_count || 0} parrainés)
           </button>

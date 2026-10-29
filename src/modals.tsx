@@ -3,7 +3,7 @@ import { ArrowRight, Flag, LogOut, RefreshCw } from "lucide-react";
 import { CarArt, Empty, Modal, VehicleCard } from "./components";
 import { RARITY_LABEL, SALVAGE } from "./catalog";
 import { LIST_MAX, LIST_MIN, BET_MAX, BET_MIN } from "./rules";
-import { eventNames, money } from "./format";
+import { eventNames, money, refUrl } from "./format";
 import type {
   Card,
   Draw,
@@ -590,7 +590,7 @@ export function AccountModal({
             Ton lien
             <input
               readOnly
-              value={`${location.origin}/?ref=${p?.referral_code}`}
+              value={refUrl(p?.referral_code)}
             />
           </label>
           <button className="btn secondary" onClick={onCopy}>

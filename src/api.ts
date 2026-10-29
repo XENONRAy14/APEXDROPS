@@ -23,6 +23,18 @@ export const providerName =
   provider === "discord"
     ? "Discord"
     : provider.charAt(0).toUpperCase() + provider.slice(1);
+export async function checkOAuthEnabled(): Promise<boolean> {
+  if (!url || !key) return false;
+  try {
+    const r = await fetch(`${url}/auth/v1/settings`, {
+      headers: { apikey: key },
+    });
+    const j = await r.json();
+    return Boolean(j?.external?.[provider]);
+  } catch {
+    return false;
+  }
+}
 export async function fetchState(): Promise<GameState> {
   if (!supabase) return demoState();
   const { data, error } = await supabase.rpc("game_state");

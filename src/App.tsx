@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   act,
+  checkOAuthEnabled,
   fetchState,
   isDemo,
   login,
@@ -30,7 +31,7 @@ import { resetDemo } from "./demo";
 import { CATALOG, SALVAGE } from "./catalog";
 import { PACK_COOLDOWN_MS } from "./rules";
 import { CarArt, FilterBar } from "./components";
-import { money } from "./format";
+import { money, refUrl } from "./format";
 import {
   AccountModal,
   BuyModal,
@@ -106,7 +107,8 @@ export default function App() {
     [signup, setSignup] = useState(true),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
-    [pseudo, setPseudo] = useState("");
+    [pseudo, setPseudo] = useState(""),
+    [oauthReady, setOauthReady] = useState(false);
   const lock = useRef(false),
     epoch = useRef(0);
 
@@ -117,6 +119,20 @@ export default function App() {
       if (token === epoch.current) {
         setState(s);
         setError("");
+        const pendingRef = localStorage.getItem("apex-ref")?.trim();
+        if (
+          pendingRef &&
+          !s.profile.referred_by &&
+          pendingRef.toUpperCase() !== s.profile.referral_code.toUpperCase()
+        ) {
+          localStorage.removeItem("apex-ref");
+          act("CLAIM_REFERRAL", { code: pendingRef })
+            .then((r) => {
+              if (r.message) setToast(r.message);
+              void fetchState().then(setState);
+            })
+            .catch(() => {});
+        }
       }
     } catch (e) {
       if (token === epoch.current)
@@ -135,6 +151,9 @@ export default function App() {
       void load();
       return;
     }
+    void checkOAuthEnabled().then((ok) => {
+      if (active) setOauthReady(ok);
+    });
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
       if (error) setError(error.message);
@@ -228,7 +247,7 @@ export default function App() {
   async function copy() {
     try {
       await navigator.clipboard.writeText(
-        `${location.origin}/?ref=${state?.profile.referral_code}`,
+        refUrl(state?.profile.referral_code),
       );
       setToast("Lien de parrainage copié.");
     } catch {
@@ -511,12 +530,16 @@ export default function App() {
                     {signup ? "Entrer au paddock" : "Se connecter"}
                   </button>
                 </form>
-                <button
-                  className="btn secondary"
-                  onClick={() => void login().catch((e) => setError(e.message))}
-                >
-                  <Users size={18} /> Continuer avec {providerName}
-                </button>
+                {oauthReady && (
+                  <button
+                    className="btn secondary"
+                    onClick={() =>
+                      void login().catch((e) => setError(e.message))
+                    }
+                  >
+                    <Users size={18} /> Continuer avec {providerName}
+                  </button>
+                )}
                 <small>
                   2 boosters bonus + 5 000 crédits offerts. Aucun argent réel.
                 </small>

@@ -1,6 +1,9 @@
 export const money = (n: number) =>
   new Intl.NumberFormat("fr-FR").format(n);
 
+export const refUrl = (code?: string) =>
+  `${location.origin}${location.pathname.replace(/\/?$/, "/")}?ref=${code || ""}`;
+
 export const time = (n: number) =>
   `${Math.floor(n / 60)
     .toString()
