@@ -62,11 +62,11 @@ import type {
 
 type Tab = "paddock" | "garage" | "market" | "arena" | "ranking";
 const nav = [
-  { id: "paddock", label: "Le paddock", icon: Gauge },
-  { id: "garage", label: "Mon garage", icon: CarFront },
-  { id: "market", label: "Le marché", icon: ShoppingBag },
-  { id: "arena", label: "L’arène", icon: Flag },
-  { id: "ranking", label: "Classement", icon: Trophy },
+  { id: "paddock", label: "Le paddock", short: "Paddock", icon: Gauge },
+  { id: "garage", label: "Mon garage", short: "Garage", icon: CarFront },
+  { id: "market", label: "Le marché", short: "Marché", icon: ShoppingBag },
+  { id: "arena", label: "L’arène", short: "Arène", icon: Flag },
+  { id: "ranking", label: "Classement", short: "Top", icon: Trophy },
 ] as const;
 const PAGE_SIZE = 12;
 
@@ -83,7 +83,6 @@ export default function App() {
     [history, setHistory] = useState(false),
     [detail, setDetail] = useState<Card | null>(null),
     [draws, setDraws] = useState<Draw[]>([]),
-    [revealed, setRevealed] = useState(0),
     [sell, setSell] = useState<Owned | null>(null),
     [price, setPrice] = useState(""),
     [buy, setBuy] = useState<Listing | null>(null),
@@ -467,7 +466,6 @@ export default function App() {
                   onOpenPack={() =>
                     void run("OPEN_PACK", {}, (r) => {
                       setDraws(r.cards || []);
-                      setRevealed(0);
                     })
                   }
                   onBuyPack={() => setConfirm("pack")}
@@ -557,6 +555,22 @@ export default function App() {
             <span>Crédits virtuels · Aucun retrait en argent</span>
           </footer>
         </main>
+        {signedIn && (
+          <nav className="tabbar" aria-label="Navigation mobile">
+            {nav.map((n) => (
+              <button
+                key={n.id}
+                className={tab === n.id ? "active" : ""}
+                aria-current={tab === n.id ? "page" : undefined}
+                onClick={() => changeTab(n.id)}
+              >
+                <n.icon size={21} />
+                <span>{n.short}</span>
+                {n.id === "garage" && unique > 0 && <i>{unique}</i>}
+              </button>
+            ))}
+          </nav>
+        )}
       </div>
       {error && (sell || buy || create || challenge || confirm || account) && (
         <div className="toast error-toast" role="alert">
@@ -580,8 +594,6 @@ export default function App() {
       {draws.length > 0 && (
         <DrawsModal
           draws={draws}
-          revealed={revealed}
-          onReveal={setRevealed}
           onInspect={(d) => {
             setDraws([]);
             setDetail(d);

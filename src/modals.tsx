@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight, Flag, LogOut, RefreshCw } from "lucide-react";
 import { CarArt, Empty, Modal, VehicleCard } from "./components";
 import { RARITY_LABEL, SALVAGE } from "./catalog";
@@ -80,28 +81,71 @@ export function DetailModal({
   );
 }
 
+// Durée du suspense avant le retournement, selon la rareté.
+const TEASE_MS: Record<Rarity, number> = {
+  Common: 700,
+  Rare: 950,
+  Epic: 1500,
+  Legendary: 2000,
+  Mythic: 2500,
+};
+const HIGH_ROLL = new Set<Rarity>(["Epic", "Legendary", "Mythic"]);
+
 export function DrawsModal({
   draws,
-  revealed,
-  onReveal,
   onInspect,
   onDone,
   onClose,
 }: {
   draws: Draw[];
-  revealed: number;
-  onReveal: (i: number) => void;
   onInspect: (d: Draw) => void;
   onDone: () => void;
   onClose: () => void;
 }) {
+  const [shown, setShown] = useState<Set<number>>(new Set());
+  const [teasing, setTeasing] = useState<number | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [mass, setMass] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const startReveal = (i: number) => {
+    if (shown.has(i) || teasing !== null) return;
+    const d = draws[i];
+    setTeasing(i);
+    timer.current = setTimeout(() => {
+      setShown((s) => new Set(s).add(i));
+      setTeasing(null);
+      if (d.is_foil || d.rarity === "Legendary" || d.rarity === "Mythic") {
+        setFlash(d.color);
+        setTimeout(() => setFlash(null), 750);
+      }
+    }, TEASE_MS[d.rarity]);
+  };
+  const revealAll = () => {
+    clearTimeout(timer.current);
+    setTeasing(null);
+    setMass(true);
+    setShown(new Set(draws.map((_, i) => i)));
+  };
+  const done = shown.size === draws.length;
+
   return (
     <Modal title="Ton booster Origins" wide onClose={onClose}>
-      <p className="modal-intro">Trois nouvelles histoires pour ton garage.</p>
+      {flash && <div className="reveal-flash" style={{ background: flash }} />}
+      <p className="modal-intro">
+        {done
+          ? "Trois nouvelles histoires pour ton garage."
+          : `${shown.size}/3 révélées · touche une carte pour la retourner.`}
+      </p>
       <div className="reveal-grid">
         {draws.map((d, i) =>
-          i < revealed ? (
-            <div className="revealed-card" key={i}>
+          shown.has(i) ? (
+            <div
+              className={`revealed-card flip-in rarity-${d.rarity.toLowerCase()}`}
+              style={mass ? { animationDelay: `${i * 140}ms` } : undefined}
+              key={i}
+            >
               <VehicleCard
                 card={d}
                 foil={d.is_foil}
@@ -112,11 +156,26 @@ export function DrawsModal({
                 {d.is_foil ? " · HOLO" : ""}
               </span>
             </div>
+          ) : teasing === i ? (
+            <div
+              key={i}
+              className={`card-back teasing ${HIGH_ROLL.has(d.rarity) ? "high-roll" : ""}`}
+              style={{ "--rc": d.color } as CSSProperties}
+              aria-live="polite"
+            >
+              <span>
+                APEX
+                <br />
+                DROPS
+              </span>
+              <b>A</b>
+              <small>RÉVÉLATION…</small>
+            </div>
           ) : (
             <button
               key={i}
               className="card-back"
-              onClick={() => onReveal(i + 1)}
+              onClick={() => startReveal(i)}
               aria-label={`Révéler la carte ${i + 1}`}
             >
               <span>
@@ -133,10 +192,9 @@ export function DrawsModal({
       <div className="modal-actions">
         <button
           className="btn primary"
-          onClick={() => (revealed < 3 ? onReveal(3) : onDone())}
+          onClick={() => (done ? onDone() : revealAll())}
         >
-          {revealed < 3 ? "Tout révéler" : "Voir mon garage"}{" "}
-          <ArrowRight size={17} />
+          {done ? "Voir mon garage" : "Tout révéler"} <ArrowRight size={17} />
         </button>
       </div>
       <p className="footnote">
