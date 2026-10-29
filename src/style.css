@@ -45,6 +45,7 @@ select {
 button {
   cursor: pointer;
   color: inherit;
+  background: transparent;
   border: 0;
   transition:
     background 0.18s ease,
@@ -935,8 +936,23 @@ svg {
 .section-heading h2 {
   font-family: "Barlow Condensed", sans-serif;
   text-transform: uppercase;
+  font-style: italic;
   font-size: 26px;
+  letter-spacing: 0.4px;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-heading h2::before {
+  content: "";
+  width: 5px;
+  height: 20px;
+  border-radius: 2px;
+  background: var(--accent-red);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.55);
+  transform: skewX(-16deg);
 }
 
 /* CARDS & KYARA RARITY GLOW + REAL PHOTOS */
@@ -2371,85 +2387,182 @@ footer button {
   .tabbar {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
+    align-items: end;
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 40;
-    background: rgba(11, 14, 23, 0.92);
-    backdrop-filter: blur(14px);
-    border-top: 1px solid var(--line);
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background:
+      linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.55), transparent) top / 100% 1px no-repeat,
+      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.018) 0 4px, transparent 4px 8px),
+      linear-gradient(180deg, rgba(16, 21, 33, 0.96) 0%, #07090e 100%);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid #1f283a;
+    box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.65);
+    padding: 4px 6px calc(6px + env(safe-area-inset-bottom, 0px));
   }
   .tabbar button {
     position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 7px 0 5px;
+    gap: 4px;
+    padding: 8px 0 6px;
     border-radius: 10px;
+    background: transparent;
     color: #64748b;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
+    font-family: "Barlow Condensed", sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
   }
   .tabbar button.active {
     color: #f8fafc;
   }
-  .tabbar button.active::before {
+  .tabbar button.active svg {
+    color: var(--accent-red);
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.6));
+  }
+  .tabbar button:not(.tabbar-fab).active::before {
     content: "";
     position: absolute;
-    top: -7px;
-    width: 26px;
+    top: -5px;
+    width: 24px;
     height: 3px;
     border-radius: 2px;
     background: var(--accent-red);
-    box-shadow: 0 0 10px var(--accent-red);
+    box-shadow: 0 0 12px var(--accent-red);
+    transform: skewX(-18deg);
   }
-  .tabbar button i {
+  .tabbar button > i {
     position: absolute;
-    top: 2px;
+    top: 3px;
     right: calc(50% - 22px);
     min-width: 16px;
     height: 16px;
     padding: 0 4px;
     border-radius: 8px;
-    background: var(--accent-red);
-    color: #fff;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+    font-family: "JetBrains Mono", monospace;
     font-size: 9px;
+    font-weight: 800;
+    font-style: normal;
+    display: grid;
+    place-items: center;
+  }
+  .tabbar-fab {
+    padding-top: 0 !important;
+  }
+  .fab-core {
+    position: relative;
+    width: 54px;
+    height: 54px;
+    margin-top: -22px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #f87171 0%, #ef4444 45%, #991b1b 100%);
+    border: 3px solid #0b0e17;
+    box-shadow:
+      0 6px 22px rgba(239, 68, 68, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    display: grid;
+    place-items: center;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .tabbar-fab.ready .fab-core {
+    animation: fab-pulse 2s ease-in-out infinite;
+  }
+  .tabbar-fab:active .fab-core {
+    transform: scale(0.94);
+  }
+  .fab-core b {
+    font-family: "Barlow Condensed", Impact, sans-serif;
+    font-size: 30px;
+    font-weight: 900;
+    font-style: italic;
+    color: #fff;
+    line-height: 1;
+    margin-right: 2px;
+  }
+  .fab-core i {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: #fff;
+    color: #0b0e17;
+    border: 2px solid #0b0e17;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
     font-weight: 900;
     font-style: normal;
     display: grid;
     place-items: center;
   }
-  .breadcrumb > span {
-    display: none;
+  @keyframes fab-pulse {
+    0%, 100% {
+      box-shadow: 0 6px 22px rgba(239, 68, 68, 0.55), 0 0 0 0 rgba(239, 68, 68, 0.45);
+    }
+    50% {
+      box-shadow: 0 8px 28px rgba(239, 68, 68, 0.8), 0 0 0 7px rgba(239, 68, 68, 0);
+    }
   }
-  .breadcrumb i {
-    display: none;
-  }
+  .breadcrumb > span,
+  .breadcrumb i,
   .demo-pill {
     display: none;
   }
-  .arena-rules,
-  .duel-grid {
+  .breadcrumb b {
+    font-family: "Barlow Condensed", sans-serif;
+    font-style: italic;
+    text-transform: uppercase;
+    font-size: 19px;
+    letter-spacing: 0.6px;
+  }
+  .arena-rules {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .duel-grid,
+  .welcome,
+  .guide-grid {
     grid-template-columns: 1fr;
+  }
+  .welcome {
+    min-height: 0;
+  }
+  .odds-table {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .odds-table > div + div {
+    border-left: 0;
+    border-top: 1px solid #1e293b;
   }
   .page-heading {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
   }
+  .toast {
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    width: calc(100% - 32px);
+    max-width: 420px;
+  }
   .modal-backdrop {
-    padding: 12px;
+    padding: 0;
     align-items: flex-end;
   }
   .modal {
     width: 100%;
-    padding: 20px 18px;
+    padding: 20px 18px calc(22px + env(safe-area-inset-bottom, 0px));
     max-height: 92dvh;
     border-radius: 18px 18px 0 0;
+    border-bottom: 0;
   }
   .reveal-grid {
     display: flex;
@@ -2459,7 +2572,7 @@ footer button {
     padding-bottom: 8px;
   }
   .reveal-grid > * {
-    flex: 0 0 min(66vw, 250px);
+    flex: 0 0 min(68vw, 250px);
     scroll-snap-align: center;
   }
   .card-back {
@@ -2470,29 +2583,106 @@ footer button {
 @media (max-width: 600px) {
   .home-cards,
   .card-grid {
-    grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .vehicle-image {
+    padding: 9px;
+  }
+  .real-photo-wrap {
+    height: 118px;
+  }
+  .vehicle-body {
+    padding: 10px;
+  }
+  .card-title {
+    font-size: 13px;
+    min-height: 32px;
+  }
+  .vehicle-stats {
+    padding: 7px 8px;
+    gap: 4px;
   }
   .stats-row {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
+  }
+  .stats-row > div {
+    padding: 16px 18px;
+  }
+  .stats-row > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .hero-feature {
+    padding: 20px;
+    min-height: 0;
+  }
+  .hero-copy h2 {
+    font-size: 30px;
   }
   .hero-car {
     position: relative;
     width: 100%;
     right: 0;
     bottom: 0;
-    margin-top: 16px;
+    margin-top: 14px;
+  }
+  .hero-photo-wrap {
+    height: 185px;
   }
   .hero-footer {
-    padding-top: 20px;
+    padding-top: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
   }
-  .detail-stats {
+  .arena-rules {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .arena-rules > div {
+    padding: 13px;
+  }
+  .duel-vehicle {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .duel-vehicle .real-photo-wrap,
+  .duel-vehicle .car-art {
+    width: 100%;
+    height: 150px;
+  }
+  .filters .search {
+    min-width: 100%;
+  }
+  .filters select,
+  .filters .chip {
+    flex: 1 1 calc(50% - 6px);
+  }
+  .referral-banner {
+    padding: 18px;
+  }
+  .referral-actions,
+  .referral-actions code {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .detail-stats,
+  .odds-table {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .race-result > div {
+    flex-direction: column;
+    gap: 8px;
   }
   .welcome h1 {
     font-size: 34px;
   }
-  .footer, footer {
+  th,
+  td {
+    padding: 12px 10px;
+  }
+  footer {
     flex-direction: column;
     gap: 8px;
     text-align: center;

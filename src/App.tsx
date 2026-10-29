@@ -350,7 +350,7 @@ export default function App() {
           <div className="sidebar-version">
             <span className="status-dot" />{" "}
             {isDemo ? "DÉMO LOCALE" : "PADDOCK CONNECTÉ"}
-            <span>V4.0</span>
+            <span>V5.0</span>
           </div>
         </div>
       </aside>
@@ -557,18 +557,56 @@ export default function App() {
         </main>
         {signedIn && (
           <nav className="tabbar" aria-label="Navigation mobile">
-            {nav.map((n) => (
-              <button
-                key={n.id}
-                className={tab === n.id ? "active" : ""}
-                aria-current={tab === n.id ? "page" : undefined}
-                onClick={() => changeTab(n.id)}
-              >
-                <n.icon size={21} />
-                <span>{n.short}</span>
-                {n.id === "garage" && unique > 0 && <i>{unique}</i>}
-              </button>
-            ))}
+            {(["garage", "market"] as const).map((id) => {
+              const n = nav.find((x) => x.id === id)!;
+              return (
+                <button
+                  key={id}
+                  className={tab === id ? "active" : ""}
+                  aria-current={tab === id ? "page" : undefined}
+                  onClick={() => changeTab(id)}
+                >
+                  <n.icon size={20} />
+                  <span>{n.short}</span>
+                  {id === "garage" && unique > 0 && <i>{unique}</i>}
+                </button>
+              );
+            })}
+            {(() => {
+              const ready = (cooldown === 0 ? 1 : 0) + (p?.bonus_packs || 0);
+              return (
+                <button
+                  className={`tabbar-fab ${tab === "paddock" ? "active" : ""} ${ready > 0 ? "ready" : ""}`}
+                  disabled={busy}
+                  onClick={() =>
+                    tab === "paddock" && ready > 0
+                      ? void run("OPEN_PACK", {}, (r) => setDraws(r.cards || []))
+                      : changeTab("paddock")
+                  }
+                  aria-label="Paddock & boosters"
+                >
+                  <span className="fab-core">
+                    <b>A</b>
+                    {ready > 0 && <i>{ready}</i>}
+                  </span>
+                  <span>{tab === "paddock" && ready > 0 ? "Ouvrir" : "Paddock"}</span>
+                </button>
+              );
+            })()}
+            {(["arena", "ranking"] as const).map((id) => {
+              const n = nav.find((x) => x.id === id)!;
+              return (
+                <button
+                  key={id}
+                  className={tab === id ? "active" : ""}
+                  aria-current={tab === id ? "page" : undefined}
+                  onClick={() => changeTab(id)}
+                >
+                  <n.icon size={20} />
+                  <span>{n.short}</span>
+                </button>
+              );
+            })}
           </nav>
         )}
       </div>
