@@ -16,6 +16,7 @@
  * Sorties : src/data/catalog.json et supabase/migrations/006_catalog_data.sql
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const ROOT = new URL("..", import.meta.url);
 const JSON_OUT = new URL("src/data/catalog.json", ROOT);
@@ -284,8 +285,12 @@ function seeded(key) {
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const fileName = (url) =>
   decodeURIComponent(url.split("/Special:FilePath/")[1] || "").replace(/ /g, "_");
-const imageUrl = (file) =>
-  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=640`;
+// URL CDN directe : Special:FilePath est limité en débit (429 en rafale).
+const imageUrl = (file) => {
+  const f = file.replace(/ /g, "_");
+  const h = createHash("md5").update(f).digest("hex");
+  return `https://upload.wikimedia.org/wikipedia/commons/thumb/${h[0]}/${h.slice(0, 2)}/${encodeURIComponent(f)}/960px-${encodeURIComponent(f)}`;
+};
 const v = (b, k) => b[k]?.value;
 
 async function fetchClass(qid, division) {
