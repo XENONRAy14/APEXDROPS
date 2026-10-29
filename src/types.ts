@@ -27,6 +27,7 @@ export interface Owned {
   quantity: number;
   is_foil: boolean;
   favorite: boolean;
+  last_raced_at?: string | null;
   cards: Card;
 }
 export interface Profile {
@@ -63,6 +64,7 @@ export interface Duel {
   creator_is_foil: boolean;
   bet_amount: number;
   status: string;
+  rarity_league?: "Street" | "Pro" | "Hyper";
   challenger_name?: string | null;
   track_name: string | null;
   winner_name: string | null;

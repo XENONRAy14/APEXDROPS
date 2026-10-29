@@ -1,7 +1,9 @@
 import { CATALOG } from "./catalog";
 import {
   FOIL_RATE,
+  LEAGUE_MAX_RANK,
   PILOT_VARIANCE,
+  PIT_COOLDOWN_MS,
   PITY_LIMIT,
   PITY_MYTHIC_RATE,
   RARITY_ODDS,
@@ -9,8 +11,34 @@ import {
   SCORE_SPEED_REF,
   TRACK_WEIGHTS,
   TRACKS,
+  type League,
 } from "./rules";
-import type { Card, Rarity } from "./types";
+import type { Card, Owned, Rarity } from "./types";
+
+const RARITY_RANK: Record<Rarity, number> = {
+  Common: 0,
+  Rare: 1,
+  Epic: 2,
+  Legendary: 3,
+  Mythic: 4,
+};
+
+export function leagueForRarity(r: Rarity): League {
+  if (r === "Common" || r === "Rare") return "Street";
+  if (r === "Epic" || r === "Legendary") return "Pro";
+  return "Hyper";
+}
+
+export function canEnterLeague(r: Rarity, league?: League | null): boolean {
+  if (!league) return true;
+  return RARITY_RANK[r] <= LEAGUE_MAX_RANK[league];
+}
+
+export function pitRemainingSec(u: Owned, now = Date.now()): number {
+  if (u.quantity > 1 || !u.last_raced_at) return 0;
+  const end = new Date(u.last_raced_at).getTime() + PIT_COOLDOWN_MS;
+  return Math.max(0, Math.ceil((end - now) / 1000));
+}
 export function random() {
   return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
 }
@@ -42,12 +70,65 @@ export function score(c: Card, track: number) {
     v = Math.min(c.top_speed_kmh / SCORE_SPEED_REF, 1) * 100,
     l = Math.max(0, Math.min(100, (2000 - c.weight_kg) / 18));
   const weights = TRACK_WEIGHTS[track];
-  return (
+  const base =
     p * weights[0] +
     v * weights[1] +
     c.handling_score * weights[2] +
-    l * weights[3]
-  );
+    l * weights[3];
+  // Touge & Pluie (Espigoulier = 0, Akina = 5) : surpuissance = patinage, poids lourd = inertie, poids plume = bonus.
+  if (track === 0 || track === 5) {
+    const wheelspin = Math.min(18, Math.max(0, (c.power_hp - 320) / 38));
+    const inertia = Math.min(16, Math.max(0, (c.weight_kg - 1150) / 45));
+    const feather =
+      c.division === "Moto"
+        ? 0
+        : Math.min(8, Math.max(0, (1050 - c.weight_kg) / 30));
+    return Math.max(5, Math.min(100, base + feather - wheelspin - inertia));
+  }
+  // Col technique & Urbain (Gineste = 2, Monaco = 3) : gabarit lourd et excès de puissance pénalisés.
+  if (track === 2 || track === 3) {
+    const wheelspin = Math.min(12, Math.max(0, (c.power_hp - 520) / 55));
+    const inertia = Math.min(10, Math.max(0, (c.weight_kg - 1380) / 60));
+    return Math.max(5, Math.min(100, base - wheelspin - inertia));
+  }
+  return base;
+}
+
+export function trackNote(c: Card, track: number): { text: string; tone: "good" | "warn" | "neutral" } {
+  if (track === 0 || track === 5) {
+    const pen =
+      Math.min(18, Math.max(0, (c.power_hp - 320) / 38)) +
+      Math.min(16, Math.max(0, (c.weight_kg - 1150) / 45));
+    const bon =
+      c.division === "Moto"
+        ? 0
+        : Math.min(8, Math.max(0, (1050 - c.weight_kg) / 30));
+    if (pen >= 8)
+      return {
+        text: `Trop lourde / puissante en épingle (-${pen.toFixed(0)} pts)`,
+        tone: "warn",
+      };
+    if (bon >= 2 || c.handling_score >= 88)
+      return {
+        text: `Spécialiste Touge & Pluie (+${Math.max(1, bon).toFixed(0)} pts)`,
+        tone: "good",
+      };
+  }
+  if (track === 2 || track === 3) {
+    const pen =
+      Math.min(12, Math.max(0, (c.power_hp - 520) / 55)) +
+      Math.min(10, Math.max(0, (c.weight_kg - 1380) / 60));
+    if (pen >= 6)
+      return {
+        text: `Gabarit pénalisé dans le sinueux (-${pen.toFixed(0)} pts)`,
+        tone: "warn",
+      };
+    if (c.handling_score >= 86)
+      return { text: "Châssis affûté pour le sinueux", tone: "good" };
+  }
+  if ((track === 1 || track === 4 || track === 7) && c.top_speed_kmh >= 310)
+    return { text: "Pleine charge · Reine des lignes droites", tone: "good" };
+  return { text: "Configuration équilibrée", tone: "neutral" };
 }
 export function trackIndex(name?: string | null): number {
   const idx = name ? TRACKS.indexOf(name) : -1;

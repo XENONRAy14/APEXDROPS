@@ -77,6 +77,19 @@ export const TRACK_WEIGHTS = [
 export const SCORE_POWER_REF = 700;
 export const SCORE_SPEED_REF = 370;
 export const PILOT_VARIANCE = 0.06; // ±3 % autour de 1.0
+export const PIT_COOLDOWN_MS = 1_800_000; // 30 min de révision au stand après une course
+
+export type League = "Street" | "Pro" | "Hyper";
+export const LEAGUE_LABEL: Record<League, string> = {
+  Street: "Ligue Street (Commune · Rare)",
+  Pro: "Ligue Pro (Épique · Légendaire max)",
+  Hyper: "Ligue Hyper (Toutes raretés)",
+};
+export const LEAGUE_MAX_RANK: Record<League, number> = {
+  Street: 1, // Common (0), Rare (1)
+  Pro: 3, // + Epic (2), Legendary (3)
+  Hyper: 4, // + Mythic (4)
+};
 
 // Démarrage et parrainage
 export const START_CASH = 5000;

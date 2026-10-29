@@ -21,6 +21,7 @@ async function database() {
     "006_catalog_data.sql",
     "007_security_hardening.sql",
     "008_arena_gacha.sql",
+    "009_arena_fairplay.sql",
   ])
     await db.exec(
       readFileSync(
@@ -88,6 +89,11 @@ test("Catalog, economy, pity and duel invariants", () => {
   for (const c of CATALOG)
     for (let t = 0; t < 8; t++)
       assert.ok(score(c, t) > 0 && score(c, t) <= 100);
+  // Physique Touge : AE86 (id=2) bat la Bugatti Veyron (id=123) sur Akina (5), mais perd sur Wangan (7)
+  const ae86 = CATALOG.find((c) => c.id === 2)!;
+  const veyron = CATALOG.find((c) => c.id === 123)!;
+  assert.ok(score(ae86, 5) > score(veyron, 5));
+  assert.ok(score(veyron, 7) > score(ae86, 7));
 });
 test("PostgreSQL migrations and authenticated transaction scenarios", async (t) => {
   const db = await database();
@@ -255,9 +261,15 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
           action(db, "ACCEPT_DUEL", { id: d.id, cardId: other }),
           /même catégorie/,
         );
-        const bid = (await snapshot(db)).inventory.find(
+        const epicBid = (await snapshot(db)).inventory.find(
           (u: any) => u.card_id === 1,
         ).id;
+        // La carte 8 est Rare (Ligue Street) : une carte Epic (id=1) est refusée !
+        await assert.rejects(
+          action(db, "ACCEPT_DUEL", { id: d.id, cardId: epicBid }),
+          /limité à la ligue Street/,
+        );
+        const bid = await owned(db, B, 8);
         const r = await action(db, "ACCEPT_DUEL", { id: d.id, cardId: bid });
         assert.equal(r.duel.pot_won, 1900);
         assert.equal(r.duel.track_name, d.track_name);
@@ -271,6 +283,14 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
         await assert.rejects(
           action(db, "ACCEPT_DUEL", { id: d.id, cardId: bid }),
           /plus ouvert/,
+        );
+        // La voiture ayant couru passe 30 min au stand
+        await assert.rejects(
+          action(db, "CREATE_DUEL", { cardId: bid, bet: 1000 }),
+          /révision au stand/,
+        );
+        await db.exec(
+          "UPDATE public.user_cards SET last_raced_at = NULL;",
         );
         await identity(db);
       },

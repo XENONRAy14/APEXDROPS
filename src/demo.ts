@@ -1,5 +1,14 @@
 import { CATALOG, cardById } from "./catalog";
-import { draw, integer, race, random, uuid } from "./engine";
+import {
+  canEnterLeague,
+  draw,
+  integer,
+  leagueForRarity,
+  pitRemainingSec,
+  race,
+  random,
+  uuid,
+} from "./engine";
 import {
   BET_MAX,
   START_BONUS_PACKS,
@@ -78,6 +87,7 @@ function starter(): GameState {
     creator_is_foil: false,
     bet_amount: [1000, 1500, 2000][i],
     status: "OPEN",
+    rarity_league: leagueForRarity(CATALOG[n].rarity),
     track_name: TRACKS[i % TRACKS.length],
     winner_name: null,
     creator_score: null,
@@ -262,8 +272,13 @@ export async function demoAction(
         )
           throw Error("Trois défis ouverts maximum.");
         credit(s, -bet, action);
+        if (pitRemainingSec(u) > 0)
+          throw Error(
+            "Cette machine est en révision au stand (30 min entre deux courses).",
+          );
         const pickedTrack =
           TRACKS[Math.min(TRACKS.length - 1, Math.floor(random() * TRACKS.length))];
+        const lg = leagueForRarity(u.cards.rarity);
         s.duels.unshift({
           id: id(),
           creator_id: "demo",
@@ -272,6 +287,7 @@ export async function demoAction(
           creator_is_foil: u.is_foil,
           bet_amount: bet,
           status: "OPEN",
+          rarity_league: lg,
           track_name: pickedTrack,
           winner_name: null,
           creator_score: null,
@@ -280,7 +296,7 @@ export async function demoAction(
           created_at: iso(),
           cards: u.cards,
         });
-        result.message = `Défi ouvert sur ${pickedTrack} ! Ta voiture reste secrète jusqu’au départ.`;
+        result.message = `Défi ${lg} ouvert sur ${pickedTrack} !`;
       }
     } else if (action === "BUY" || action === "CANCEL_LISTING") {
       const m = s.listings.find(
@@ -313,8 +329,16 @@ export async function demoAction(
           throw Error("Tu ne peux pas affronter ton propre défi.");
         const u = s.inventory.find((u) => u.id === payload.cardId);
         if (!u) throw Error("Sélectionne un véhicule.");
+        if (pitRemainingSec(u) > 0)
+          throw Error(
+            "Cette machine est en révision au stand (30 min entre deux courses).",
+          );
+        const lg = d.rarity_league || leagueForRarity(d.cards.rarity);
+        if (!canEnterLeague(u.cards.rarity, lg))
+          throw Error(`Ce défi est limité à la ligue ${lg}.`);
         const r = race(d.cards, u.cards, random, d.track_name);
         credit(s, -d.bet_amount, action);
+        u.last_raced_at = iso();
         const won = !r.aWins,
           pot = Math.floor(d.bet_amount * 2 * DUEL_WINNER_SHARE);
         if (won) {

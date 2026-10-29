@@ -9,11 +9,12 @@ import {
 import { CarArt, Empty } from "../components";
 import {
   DUEL_WINNER_SHARE,
+  LEAGUE_LABEL,
   TRACKS,
   TRACK_TAGS,
   TRACK_WEIGHTS,
 } from "../rules";
-import { trackIndex } from "../engine";
+import { canEnterLeague, leagueForRarity, trackIndex } from "../engine";
 import { money } from "../format";
 import type { Duel, Owned, Profile } from "../types";
 
@@ -100,18 +101,18 @@ export function Arena({
       <div className="arena-rules">
         <div>
           <Flag />
-          <b>8 circuits typés</b>
-          <span>Annoncé avant de choisir ta voiture</span>
+          <b>Physique Touge / Vitesse</b>
+          <span>Surpuissance & poids pénalisés en col</span>
         </div>
         <div>
           <EyeOff />
-          <b>Blind pick équitable</b>
-          <span>Voiture adverse dévoilée au départ</span>
+          <b>3 Ligues de Rareté</b>
+          <span>Street · Pro · Hyper + voiture secrète</span>
         </div>
         <div>
           <Clock />
-          <b>24 h pour courir</b>
-          <span>Mise remboursée à l’expiration</span>
+          <b>30 min au stand</b>
+          <span>Révision après course (sauf doublon)</span>
         </div>
         <div>
           <Trophy />
@@ -132,10 +133,20 @@ export function Arena({
       <div className="duel-grid">
         {open.map((d) => {
           const mine = d.creator_id === p?.id;
+          const league =
+            d.rarity_league || leagueForRarity(d.cards.rarity);
+          const hasEligible = inv.some(
+            (u) =>
+              u.cards.division === d.cards.division &&
+              canEnterLeague(u.cards.rarity, league),
+          );
           return (
             <article className="duel-card" key={d.id}>
               <div className="duel-top">
-                <span className="outline-pill">{d.cards.division}</span>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <span className="outline-pill">{d.cards.division}</span>
+                  <span className="outline-pill">Ligue {league}</span>
+                </div>
                 <span>
                   <Clock size={13} />{" "}
                   {Math.max(
@@ -157,7 +168,8 @@ export function Arena({
                       <h3>{d.cards.name}</h3>
                       <p>
                         {d.cards.power_hp} ch · {d.cards.top_speed_kmh} km/h ·
-                        Châssis {d.cards.handling_score}
+                        Châssis {d.cards.handling_score} · {d.cards.weight_kg}{" "}
+                        kg
                       </p>
                     </div>
                   </>
@@ -165,15 +177,15 @@ export function Arena({
                   <>
                     <div className="mystery-car">
                       <span>?</span>
-                      <small>{d.cards.division.toUpperCase()}</small>
+                      <small>LIGUE {league.toUpperCase()}</small>
                     </div>
                     <div>
                       <small>DÉFI DE {d.creator_name.toUpperCase()}</small>
                       <h3>Machine secrète</h3>
                       <p>
-                        Catégorie <b>{d.cards.division}</b> · Révélée au départ
-                        de la course. Choisis ta meilleure machine pour ce
-                        circuit !
+                        <b>{LEAGUE_LABEL[league]}</b> · Catégorie{" "}
+                        <b>{d.cards.division}</b>. Choisis ta meilleure machine
+                        homologuée pour ce circuit !
                       </p>
                     </div>
                   </>
@@ -191,10 +203,7 @@ export function Arena({
                   disabled={
                     busy ||
                     (!mine &&
-                      ((p?.cash_balance || 0) < d.bet_amount ||
-                        !inv.some(
-                          (u) => u.cards.division === d.cards.division,
-                        )))
+                      ((p?.cash_balance || 0) < d.bet_amount || !hasEligible))
                   }
                   onClick={() => (mine ? onCancel(d) : onChallenge(d))}
                 >
@@ -204,9 +213,9 @@ export function Arena({
               </div>
               <small className="duel-hint">
                 {mine
-                  ? "Les autres pilotes voient le circuit et la catégorie, mais pas ta voiture."
-                  : !inv.some((u) => u.cards.division === d.cards.division)
-                    ? `Une carte ${d.cards.division} est nécessaire.`
+                  ? `Homologué en ${LEAGUE_LABEL[league]}. Ta voiture reste masquée jusqu’au départ.`
+                  : !hasEligible
+                    ? `Il te faut une carte ${d.cards.division} éligible en ${LEAGUE_LABEL[league]}.`
                     : `Pot net à gagner : ${money(Math.floor(d.bet_amount * 2 * DUEL_WINNER_SHARE))} CR`}
               </small>
             </article>

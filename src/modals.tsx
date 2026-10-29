@@ -2,10 +2,17 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { ArrowRight, Check, Flag, LogOut, RefreshCw, Search, Trophy } from "lucide-react";
 import { CarArt, Empty, Modal, VehicleCard } from "./components";
 import { CATALOG, RARITY_LABEL, SALVAGE, cardById } from "./catalog";
-import { LIST_MAX, LIST_MIN, BET_MAX, BET_MIN, TRACKS } from "./rules";
-import { score, trackIndex } from "./engine";
+import { LIST_MAX, LIST_MIN, BET_MAX, BET_MIN, LEAGUE_LABEL, TRACKS } from "./rules";
+import {
+  canEnterLeague,
+  leagueForRarity,
+  pitRemainingSec,
+  score,
+  trackIndex,
+  trackNote,
+} from "./engine";
 import { TrackProfile } from "./views/Arena";
-import { eventNames, money, refUrl } from "./format";
+import { eventNames, money, refUrl, time } from "./format";
 import type {
   Card,
   Draw,
@@ -334,8 +341,14 @@ export function DuelFormModal({
   const create = !challenge;
   const [q, setQ] = useState("");
   const [divFilter, setDivFilter] = useState<string>("all");
+  const [leagueFilter, setLeagueFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("fit");
+  const [showAll, setShowAll] = useState(false);
+  const [pageIdx, setPageIdx] = useState(0);
   const tIdx = challenge ? trackIndex(challenge.track_name) : -1;
+  const challengeLeague = challenge
+    ? challenge.rarity_league || leagueForRarity(challenge.cards.rarity)
+    : undefined;
 
   const metric = (c: Card) =>
     tIdx >= 0 ? score(c, tIdx) : avgTrackScore(c);
@@ -344,11 +357,17 @@ export function DuelFormModal({
     const filtered = inv.filter(
       (u) =>
         (create
-          ? divFilter === "all" || u.cards.division === divFilter
-          : u.cards.division === challenge?.cards.division) &&
+          ? (divFilter === "all" || u.cards.division === divFilter) &&
+            (leagueFilter === "all" ||
+              leagueForRarity(u.cards.rarity) === leagueFilter)
+          : u.cards.division === challenge?.cards.division &&
+            canEnterLeague(u.cards.rarity, challengeLeague)) &&
         u.cards.name.toLocaleLowerCase().includes(q.toLocaleLowerCase()),
     );
     return [...filtered].sort((a, b) => {
+      const aPit = pitRemainingSec(a) > 0 ? 1 : 0;
+      const bPit = pitRemainingSec(b) > 0 ? 1 : 0;
+      if (aPit !== bPit) return aPit - bPit;
       if (sortBy === "power") return b.cards.power_hp - a.cards.power_hp;
       if (sortBy === "speed")
         return b.cards.top_speed_kmh - a.cards.top_speed_kmh;
@@ -357,14 +376,37 @@ export function DuelFormModal({
       if (sortBy === "light") return a.cards.weight_kg - b.cards.weight_kg;
       return metric(b.cards) - metric(a.cards);
     });
-  }, [inv, create, divFilter, challenge, q, sortBy, tIdx]);
+  }, [
+    inv,
+    create,
+    divFilter,
+    leagueFilter,
+    challenge,
+    challengeLeague,
+    q,
+    sortBy,
+    tIdx,
+  ]);
 
+  const readyPool = pool.filter((u) => pitRemainingSec(u) === 0);
   const current =
-    inv.find((u) => u.id === selected) || pool[0] || null;
+    pool.find((u) => u.id === selected && pitRemainingSec(u) === 0) ||
+    readyPool[0] ||
+    null;
 
   useEffect(() => {
     if (current && current.id !== selected) onSelected(current.id);
   }, [current, selected, onSelected]);
+
+  useEffect(() => setPageIdx(0), [q, divFilter, leagueFilter, sortBy, showAll]);
+
+  const PAGE = 6;
+  const totalPages = Math.max(1, Math.ceil(pool.length / PAGE));
+  const displayed = showAll
+    ? pool.slice(pageIdx * PAGE, (pageIdx + 1) * PAGE)
+    : pool.slice(0, 3);
+  const diag =
+    current && tIdx >= 0 ? trackNote(current.cards, tIdx) : null;
 
   return (
     <Modal
@@ -376,16 +418,17 @@ export function DuelFormModal({
         <>
           <TrackProfile trackName={challenge.track_name} />
           <p className="modal-intro">
-            Défi <b>{challenge.cards.division}</b> de{" "}
-            <b>{challenge.creator_name}</b> · Sa machine est secrète. Choisis la
-            voiture de ton garage la mieux adaptée à ce circuit !
+            Défi <b>{challenge.cards.division}</b> ·{" "}
+            <b>{LEAGUE_LABEL[challengeLeague!]}</b> de{" "}
+            <b>{challenge.creator_name}</b>. Voici tes{" "}
+            <b>3 meilleures machines homologuées</b> pour ce circuit :
           </p>
         </>
       ) : (
         <p className="modal-intro">
-          Choisis ta machine et ta mise : l’un des <b>8 circuits</b> sera tiré
-          au sort à l’ouverture, et ta voiture restera secrète pour tes rivaux
-          jusqu’au départ.
+          Choisis ta machine : sa rareté fixe la <b>Ligue du défi</b> (Street,
+          Pro ou Hyper) pour empêcher les hypercars d’écraser les petites
+          sportives, et l’un des <b>8 circuits</b> sera tiré au sort.
         </p>
       )}
       <form
@@ -410,10 +453,27 @@ export function DuelFormModal({
             <div className="duel-selected-info">
               <span className="eyebrow">
                 MACHINE SÉLECTIONNÉE · {RARITY_LABEL[current.cards.rarity]} ·{" "}
-                {current.cards.division}
+                LIGUE {leagueForRarity(current.cards.rarity).toUpperCase()}
                 {current.is_foil ? " · HOLO" : ""}
               </span>
               <h3>{current.cards.name}</h3>
+              {diag && (
+                <small
+                  style={{
+                    display: "block",
+                    marginBottom: 6,
+                    fontWeight: 800,
+                    color:
+                      diag.tone === "good"
+                        ? "#34d399"
+                        : diag.tone === "warn"
+                          ? "#f87171"
+                          : "#94a3b8",
+                  }}
+                >
+                  {diag.text}
+                </small>
+              )}
               <div className="duel-selected-stats">
                 <span>
                   <small>Puissance</small>
@@ -441,59 +501,99 @@ export function DuelFormModal({
           </div>
         )}
 
-        <div className="duel-picker-controls">
-          <label className="search">
-            <Search size={16} />
-            <input
-              type="search"
-              placeholder="Chercher un modèle dans ton garage…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
-          {create && (
-            <select
-              value={divFilter}
-              onChange={(e) => setDivFilter(e.target.value)}
-              aria-label="Catégorie"
+        <div className="section-heading" style={{ marginTop: 10, marginBottom: 10 }}>
+          <h2 style={{ fontSize: 18 }}>
+            {showAll
+              ? `Garage homologué (${pool.length})`
+              : "Top 3 recommandé par ton ingénieur"}
+          </h2>
+          {pool.length > 3 && (
+            <button
+              type="button"
+              className="text-btn"
+              onClick={() => setShowAll(!showAll)}
             >
-              <option value="all">Toutes catégories</option>
-              <option value="Route">Route</option>
-              <option value="Compétition">Compétition</option>
-              <option value="Moto">Moto</option>
-            </select>
+              {showAll
+                ? "Voir uniquement le Top 3"
+                : `Parcourir tout mon garage (${pool.length})`}
+            </button>
           )}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            aria-label="Trier par"
-          >
-            <option value="fit">
-              {challenge ? "Trier : Meilleure sur ce circuit" : "Trier : Polyvalence"}
-            </option>
-            <option value="power">Trier : Puissance (ch)</option>
-            <option value="speed">Trier : Vitesse (km/h)</option>
-            <option value="handling">Trier : Châssis</option>
-            <option value="light">Trier : Plus légère (kg)</option>
-          </select>
         </div>
 
+        {showAll && (
+          <div className="duel-picker-controls">
+            <label className="search">
+              <Search size={16} />
+              <input
+                type="search"
+                placeholder="Chercher un modèle dans ton garage…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            {create && (
+              <>
+                <select
+                  value={divFilter}
+                  onChange={(e) => setDivFilter(e.target.value)}
+                  aria-label="Catégorie"
+                >
+                  <option value="all">Toutes catégories</option>
+                  <option value="Route">Route</option>
+                  <option value="Compétition">Compétition</option>
+                  <option value="Moto">Moto</option>
+                </select>
+                <select
+                  value={leagueFilter}
+                  onChange={(e) => setLeagueFilter(e.target.value)}
+                  aria-label="Ligue"
+                >
+                  <option value="all">Toutes ligues</option>
+                  <option value="Street">Ligue Street (C/R)</option>
+                  <option value="Pro">Ligue Pro (E/L)</option>
+                  <option value="Hyper">Ligue Hyper (M)</option>
+                </select>
+              </>
+            )}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              aria-label="Trier par"
+            >
+              <option value="fit">
+                {challenge
+                  ? "Trier : Meilleure sur ce circuit"
+                  : "Trier : Polyvalence"}
+              </option>
+              <option value="power">Trier : Puissance (ch)</option>
+              <option value="speed">Trier : Vitesse (km/h)</option>
+              <option value="handling">Trier : Châssis</option>
+              <option value="light">Trier : Plus légère (kg)</option>
+            </select>
+          </div>
+        )}
+
         <div className="duel-picker-grid" role="listbox" aria-label="Ton garage">
-          {pool.map((u) => {
+          {displayed.map((u) => {
+            const pit = pitRemainingSec(u);
             const active = current?.id === u.id;
             const fit = metric(u.cards);
+            const note = tIdx >= 0 ? trackNote(u.cards, tIdx) : null;
             return (
               <button
                 type="button"
                 key={u.id}
                 role="option"
                 aria-selected={active}
+                disabled={pit > 0}
                 className={`duel-pick-card rarity-${u.cards.rarity.toLowerCase()} ${active ? "selected" : ""}`}
                 onClick={() => onSelected(u.id)}
               >
                 <div className="duel-pick-photo">
                   <CarArt card={u.cards} />
-                  <span className="duel-pick-fit">{fit.toFixed(1)} pts</span>
+                  <span className="duel-pick-fit">
+                    {pit > 0 ? `STAND ${time(pit)}` : `${fit.toFixed(1)} pts`}
+                  </span>
                   {active && (
                     <span className="duel-pick-check">
                       <Check size={14} />
@@ -502,10 +602,26 @@ export function DuelFormModal({
                 </div>
                 <div className="duel-pick-body">
                   <small>
-                    {RARITY_LABEL[u.cards.rarity]} · {u.cards.division}
+                    {RARITY_LABEL[u.cards.rarity]} · Ligue{" "}
+                    {leagueForRarity(u.cards.rarity)}
                     {u.is_foil ? " · Holo" : ""}
                   </small>
                   <b>{u.cards.name}</b>
+                  {note && (
+                    <small
+                      style={{
+                        color:
+                          note.tone === "good"
+                            ? "#34d399"
+                            : note.tone === "warn"
+                              ? "#f87171"
+                              : "#64748b",
+                        textTransform: "none",
+                      }}
+                    >
+                      {note.text}
+                    </small>
+                  )}
                   <div className="duel-pick-specs">
                     <span>{u.cards.power_hp} ch</span>
                     <span>{u.cards.top_speed_kmh} km/h</span>
@@ -518,11 +634,35 @@ export function DuelFormModal({
           })}
           {!pool.length && (
             <Empty
-              title="Aucun véhicule correspondant."
-              desc="Change de filtre ou ouvre un booster pour agrandir ton garage."
+              title="Aucun véhicule éligible."
+              desc="Il te faut une voiture de cette catégorie et de cette Ligue (Street, Pro ou Hyper)."
             />
           )}
         </div>
+
+        {showAll && totalPages > 1 && (
+          <div className="modal-actions" style={{ marginTop: 0, marginBottom: 12 }}>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={pageIdx === 0}
+              onClick={() => setPageIdx((p) => Math.max(0, p - 1))}
+            >
+              ← Précédent
+            </button>
+            <span style={{ fontSize: 12, color: "#94a3b8", alignSelf: "center" }}>
+              Page {pageIdx + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={pageIdx + 1 >= totalPages}
+              onClick={() => setPageIdx((p) => Math.min(totalPages - 1, p + 1))}
+            >
+              Suivant →
+            </button>
+          </div>
+        )}
 
         {create && (
           <label className="field">
