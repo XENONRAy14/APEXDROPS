@@ -199,16 +199,143 @@ const segmentsOf = (it) => {
   const hit = TEXT_SEGMENTS.find(([re]) => re.test(first));
   return hit ? [SEGMENTS[hit[1]]] : [];
 };
-// Puissance / vitesse maximale citées dans le résumé (« 478 chevaux », « 324 km/h »).
+// Fiches constructeurs exactes [power_hp, weight_kg, top_speed_kmh, year] pour les modèles iconiques.
+const REAL_SPECS = {
+  Q172610: [1001, 1888, 407, 2005], // Bugatti Veyron 16.4
+  Q66587547: [1600, 1976, 380, 2022], // Bugatti Centodieci
+  Q61986597: [1500, 1995, 420, 2019], // Bugatti La Voiture Noire
+  Q113565134: [1600, 1995, 420, 2022], // Bugatti W16 Mistral
+  Q126789787: [1800, 1995, 445, 2024], // Bugatti Tourbillon
+  Q731408: [560, 1620, 342, 1991], // Bugatti EB110
+  Q463627: [478, 1100, 324, 1987], // Ferrari F40
+  Q748461: [520, 1230, 325, 1995], // Ferrari F50
+  Q269880: [660, 1365, 350, 2002], // Ferrari Enzo
+  Q3069684: [963, 1360, 352, 2013], // Ferrari LaFerrari
+  Q64162421: [1000, 1570, 340, 2019], // Ferrari SF90 Stradale
+  Q130549590: [1200, 1525, 350, 2024], // Ferrari F80
+  Q277339: [300, 880, 280, 1962], // Ferrari 250 GTO
+  Q176152: [400, 1160, 305, 1984], // Ferrari 288 GTO
+  Q239793: [490, 1450, 315, 2004], // Ferrari F430
+  Q117235: [400, 1390, 295, 1999], // Ferrari 360 Modena
+  Q276396: [570, 1485, 325, 2009], // Ferrari 458 Italia
+  Q18943721: [670, 1475, 330, 2015], // Ferrari 488 GTB
+  Q61915859: [720, 1435, 340, 2019], // Ferrari F8 Tributo
+  Q385268: [620, 1688, 330, 2006], // Ferrari 599 GTB Fiorano
+  Q976334: [740, 1525, 340, 2012], // Ferrari F12berlinetta
+  Q28790462: [800, 1525, 340, 2017], // Ferrari 812 Superfast
+  Q125758337: [830, 1560, 340, 2024], // Ferrari 12Cilindri
+  Q109655897: [840, 1485, 340, 2021], // Ferrari Daytona SP3
+  Q56669338: [810, 1500, 300, 2019], // Ferrari Monza SP1
+  Q107324636: [830, 1470, 330, 2021], // Ferrari 296 GTB
+  Q830375: [390, 1506, 290, 1984], // Ferrari Testarossa
+  Q1146729: [380, 1350, 295, 1994], // Ferrari F355
+  Q830381: [800, 1155, 345, 2005], // Ferrari FXX
+  Q18605558: [1050, 1165, 350, 2014], // Ferrari FXX K
+  Q744792: [460, 1735, 310, 2008], // Ferrari California
+  Q943299: [660, 1880, 335, 2011], // Ferrari FF
+  Q22673219: [690, 1790, 335, 2016], // Ferrari GTC4Lusso
+  Q37806207: [600, 1664, 320, 2017], // Ferrari Portofino
+  Q74955156: [620, 1570, 320, 2019], // Ferrari Roma
+  Q850536: [385, 1180, 280, 1966], // Lamborghini Miura
+  Q863812: [455, 1490, 295, 1974], // Lamborghini Countach
+  Q462223: [492, 1576, 325, 1990], // Lamborghini Diablo
+  Q216757: [580, 1650, 330, 2001], // Lamborghini Murciélago
+  Q152917: [520, 1430, 315, 2003], // Lamborghini Gallardo
+  Q842432: [650, 1665, 340, 2007], // Lamborghini Reventón
+  Q318094: [700, 1575, 350, 2011], // Lamborghini Aventador
+  Q6362826: [750, 1450, 355, 2013], // Lamborghini Veneno
+  Q15396270: [610, 1422, 325, 2014], // Lamborghini Huracán
+  Q108082919: [814, 1595, 355, 2021], // Lamborghini Countach LPI 800-4
+  Q126102024: [920, 1690, 343, 2024], // Lamborghini Temerario
+  Q849607: [627, 1138, 386, 1993], // McLaren F1
+  Q6407533: [916, 1450, 350, 2013], // McLaren P1
+  Q45304944: [800, 1198, 335, 2018], // McLaren Senna
+  Q57831546: [1070, 1430, 403, 2019], // McLaren Speedtail
+  Q75234729: [815, 1148, 326, 2020], // McLaren Elva
+  Q113579330: [840, 1000, 320, 2022], // McLaren Solus GT
+  Q130375472: [1275, 1399, 350, 2025], // McLaren W1
+  Q28913682: [720, 1419, 341, 2017], // McLaren 720S
+  Q15770155: [650, 1428, 333, 2014], // McLaren 650S
+  Q19759816: [570, 1313, 328, 2015], // McLaren 570S
+  Q1130427: [625, 1301, 333, 2011], // McLaren MP4-12C
+  Q63968564: [620, 1530, 326, 2019], // McLaren GT
+  Q102562479: [680, 1498, 330, 2021], // McLaren Artura
+  Q748454: [612, 1380, 330, 2003], // Porsche Carrera GT
+  Q962317: [887, 1642, 345, 2013], // Porsche 918 Spyder
+  Q575937: [450, 1450, 317, 1986], // Porsche 959
+  Q848965: [650, 1250, 350, 1999], // Pagani Zonda
+  Q1414821: [730, 1350, 383, 2011], // Pagani Huayra
+  Q113960878: [864, 1280, 350, 2022], // Pagani Utopia
+  Q499109: [570, 1740, 315, 2007], // Nissan GT-R R35
+  Q647404: [330, 1510, 250, 1993], // Toyota Supra
+  Q1341985: [560, 1480, 325, 2010], // Lexus LFA
+  Q748126: [280, 1370, 270, 1990], // Honda NSX
+  Q861634: [280, 1280, 250, 1992], // Mazda RX-7
+  Q750015: [760, 1630, 354, 2009], // Aston Martin One-77
+  Q28402601: [1160, 1030, 355, 2021], // Aston Martin Valkyrie
+  Q19394726: [831, 1350, 320, 2015], // Aston Martin Vulcan
+  Q28669404: [1063, 1695, 352, 2022], // Mercedes-AMG One
+  Q207624: [626, 1768, 334, 2003], // Mercedes-Benz SLR McLaren
+  Q745023: [215, 1295, 260, 1954], // Mercedes-Benz 300 SL
+  Q521044: [549, 1470, 342, 1992], // Jaguar XJ220
+  Q389575: [630, 1335, 330, 2004], // Maserati MC12
+  Q85846574: [630, 1500, 325, 2020], // Maserati MC20
+  Q758778: [540, 1595, 320, 2006], // Audi R8
+  Q2626290: [1244, 1244, 435, 2011], // Hennessey Venom GT
+  Q30588296: [1817, 1385, 437, 2021], // Hennessey Venom F5
+  Q848954: [1183, 1247, 412, 2006], // SSC Ultimate Aero
+  Q535957: [1750, 1247, 455, 2020], // SSC Tuatara
+  Q893186: [1224, 1900, 355, 2013], // Rimac Concept One
+  Q65054542: [2000, 1680, 350, 2021], // Lotus Evija
+  Q110820578: [1020, 798, 355, 2022], // Ferrari F1-75
+  Q116627474: [1020, 798, 355, 2023], // Mercedes-AMG F1 W14
+  Q110588567: [1010, 798, 352, 2022], // McLaren MCL36
+  Q132291693: [1030, 798, 355, 2025], // McLaren MCL39
+  Q796756: [207, 197, 303, 2009], // BMW S1000RR
+  Q604551: [200, 199, 299, 1998], // Yamaha YZF-R1
+  Q1854043: [120, 190, 262, 1999], // Yamaha YZF-R6
+  Q1462612: [15, 142, 125, 2008], // Yamaha YZF-R125
+  Q20873582: [42, 169, 180, 2015], // Yamaha YZF-R3
+  Q4022458: [19, 136, 136, 2008], // Yamaha YZF-R15
+  Q1124041: [197, 220, 312, 1999], // Suzuki Hayabusa
+  Q1626501: [120, 194, 260, 2003], // Honda CBR600RR
+  Q2733256: [192, 196, 299, 2004], // Honda CBR1000RR
+  Q1626503: [13, 127, 115, 2004], // Honda CBR125R
+  Q1626496: [26, 161, 145, 2011], // Honda CBR250R
+  Q26046126: [41, 165, 175, 2016], // Honda CBR250RR
+  Q1737325: [203, 207, 299, 2004], // Kawasaki ZX-10R
+  Q1737326: [130, 196, 265, 1995], // Kawasaki ZX-6R
+  Q116620201: [77, 189, 240, 2023], // Kawasaki Ninja ZX-4R
+  Q1755865: [202, 202, 299, 2001], // Suzuki GSX-R 1000
+  Q1747291: [217, 202, 305, 2009], // Aprilia RSV4
+  Q106974405: [100, 183, 230, 2020], // Aprilia RS 660
+  Q5780728: [170, 171, 299, 2009], // Ducati 1198
+  Q18755645: [205, 190, 299, 2015], // Ducati 1299 Panigale
+  Q1263357: [114, 195, 260, 1994], // Ducati 916
+  Q1263348: [134, 194, 256, 2008], // Ducati 848
+  Q1263363: [140, 199, 270, 2003], // Ducati 999
+};
+
+// Corrections de noms Wikidata vandalisés.
+const NAME_FIX = {
+  Q4022458: "Yamaha YZF-R15",
+  Q915512: "Nissan S-Cargo",
+  Q598404: "Volvo 145",
+  Q7923270: "Vespa Sprint 1967",
+};
+
+// Puissance / vitesse / masse tirées de l'infobox Wikipédia ou du résumé.
 const num = (s) => Number(s.replace(/[\s  .]/g, "").replace(",", "."));
 function textStats(it) {
   const t = it.extract || "";
-  const hp = t.match(/(\d[\d\s  .]{0,6}\d|\d)\s?(?:ch\b|chevaux|cv\b|hp\b|bhp\b|horsepower)/i);
+  const hp = t.match(/(\d[\d\s  .]{0,6}\d|\d)\s?(?:ch\b|chevaux|cv\b|hp\b|bhp\b|PS\b|horsepower)/i);
   const kw = t.match(/(\d[\d\s  ]{0,5}\d|\d)\s?kW\b/i);
   const kmh = t.match(/(\d[\d\s  ]{0,4}\d)\s?km\/h/i);
+  const kg = t.match(/(\d{3,4})\s?kg\b/i);
   return {
-    hp: hp ? num(hp[1]) : kw ? num(kw[1]) * 1.341 : null,
-    kmh: kmh ? num(kmh[1]) : null,
+    hp: it.info?.hp ?? (hp ? num(hp[1]) : kw ? num(kw[1]) * 1.3596 : null),
+    kmh: it.info?.kmh ?? (kmh ? num(kmh[1]) : null),
+    kg: it.info?.kg ?? (kg ? num(kg[1]) : null),
   };
 }
 const prestige = (it) => {
@@ -216,9 +343,10 @@ const prestige = (it) => {
   const seg = segs.length ? Math.max(...segs.map((s) => s.prestige)) : 0;
   return seg + brandTier(it.brand || it.name) + (KEYWORDS.test(it.name) ? 1 : 0);
 };
-// Année : Wikidata, sinon résumé Wikipédia, nom puis description.
+// Année : Wikidata, infobox Wikipédia, résumé, nom puis description.
 function guessYear(it) {
-  if (it.year) return it.year;
+  if (it.year && it.year >= 1885) return it.year;
+  if (it.info?.year) return it.info.year;
   const now = new Date().getFullYear() + 1;
   for (const text of [it.extract, it.name, it.desc]) {
     const m = String(text || "").match(/(?<!\d)(18[89]\d|19\d\d|20\d\d)(?!\d)/);
@@ -226,10 +354,17 @@ function guessYear(it) {
   }
   return null;
 }
-// Cylindrée lue dans le nom d'une moto (« YBR 125 », « GSX-R 1000 »).
+// Cylindrée lue dans le nom d'une moto (« YBR 125 », « YZF-R125 », « CBR600RR », « ZX-10R »).
 function displacement(it) {
-  // Nombre isolé (pas collé à des lettres : « R75 », « RC212V » ne sont pas des cylindrées).
-  const m = it.name.match(/(?<![\w.])(\d{2,4})(?:\s?cc)?(?![\w])/i);
+  const n = NAME_FIX[it.qid] || it.name;
+  if (/\b(?:YZF-R1|R1M|S\s?1000\s?RR|ZX-10R|CBR1000|GSX-R\s?1000|RSV4)\b/i.test(n)) return 1000;
+  if (/\b(?:YZF-R6|ZX-6R|CBR600|GSX-R\s?600|Daytona\s?675)\b/i.test(n)) return 600;
+  if (/\b(?:YZF-R3|Ninja\s?300|CBR300)\b/i.test(n)) return 300;
+  if (/\b(?:YZF-R15|CBR150)\b/i.test(n)) return 150;
+  if (/\b(?:YZF-R125|CBR125|NSR125|RS\s?125|MT-125|Duke\s?125)\b/i.test(n)) return 125;
+  const m =
+    n.match(/(?<![\w.])(\d{2,4})(?:\s?cc)?(?![\w])/i) ||
+    n.match(/[A-Z-](50|80|100|110|125|150|175|200|250|300|350|390|400|450|500|600|650|660|700|750|800|850|900|950|1000|1050|1100|1200|1250|1300|1400)(?:[A-Z]{0,2})\b/i);
   const cc = m && Number(m[1]);
   return cc >= 49 && cc <= 2500 && !(cc >= 1885 && cc <= 2030) ? cc : null;
 }
@@ -448,23 +583,26 @@ async function addCredits(items) {
   }
 }
 
-// Stats réelles quand disponibles et plausibles, sinon estimation déterministe.
+// Stats réelles (table constructeur → Wikidata → Infobox/résumé Wikipédia), sinon estimation.
 function stats(it, rarity) {
   const rnd = seeded(it.qid);
   const noise = (a) => 1 - a + rnd() * 2 * a;
   const tier = RARITIES.length - 1 - RARITIES.indexOf(rarity); // 0 Common … 4 Mythic
-  const year = it.year ?? 1995;
+  const exact = REAL_SPECS[it.qid];
+  const year = exact?.[3] ?? guessYear(it) ?? 1995;
   const era = Math.max(0, year - 1950);
-  // Valeur réelle : Wikidata (bornes absolues), sinon chiffre cité par
-  // Wikipédia, retenu seulement s'il reste cohérent avec l'estimation
-  // (×0,4 à ×2,5) pour écarter les faux positifs du texte libre.
   const fromText = textStats(it);
-  const pick = (wd, text, est, lo, hi) =>
-    wd > lo && wd < hi
-      ? wd
-      : text > lo && text < hi && text > est * 0.4 && text < est * 2.5
-        ? text
-        : est;
+  // Priorité : 1) REAL_SPECS constructeur, 2) Wikidata, 3) Infobox Wikipédia, 4) résumé Wikipédia cohérent, 5) estimation.
+  const pick = (ex, wd, info, text, est, lo, hi) =>
+    ex > lo && ex < hi
+      ? ex
+      : wd > lo && wd < hi
+        ? wd
+        : info > lo && info < hi && info > est * 0.25 && info < est * 3.5
+          ? info
+          : text > lo && text < hi && text > est * 0.4 && text < est * 2.5
+            ? text
+            : est;
   // Profil du segment le plus prestigieux, sinon profil moyen de la division.
   const seg = segmentsOf(it).sort((a, b) => b.prestige - a.prestige)[0] ?? {
     Route: { power: 1, kg: 1250, handling: 64 },
@@ -482,23 +620,24 @@ function stats(it, rarity) {
     (rnd() - 0.5) * 8;
   const wdHp = it.power && it.power / 745.7,
     wdKmh = it.speed && it.speed * 3.6;
+  const inf = it.info || {};
   let hp, kg, kmh;
   if (it.division === "Moto") {
     const cc = displacement(it);
     const hpEst = cc
       ? cc * (seg.prestige >= 2 ? 0.17 : 0.1) * (0.8 + Math.min(era, 70) / 175)
       : (15 + era * 1.1) * seg.power * boost;
-    hp = pick(wdHp, fromText.hp, clamp(hpEst * noise(0.12), 3, 300), 2, 400);
-    kg = pick(it.mass, null, clamp(seg.kg * noise(0.12), 60, 400), 40, 500);
-    kmh = pick(wdKmh, fromText.kmh, clamp(55 + 15 * Math.sqrt(hp) * noise(0.05), 45, 360), 30, 450);
+    hp = pick(exact?.[0], wdHp, inf.hp, fromText.hp, clamp(hpEst * noise(0.12), 3, 300), 2, 400);
+    kg = pick(exact?.[1], it.mass, inf.kg, fromText.kg, clamp(seg.kg * noise(0.12), 60, 400), 40, 500);
+    kmh = pick(exact?.[2], wdKmh, inf.kmh, fromText.kmh, clamp(55 + 15 * Math.sqrt(hp) * noise(0.05), 45, 360), 30, 450);
   } else if (race) {
-    hp = pick(wdHp, fromText.hp, clamp((100 + era * 4.5) * seg.power * boost * noise(0.12), 60, 1100), 40, 2000);
-    kg = pick(it.mass, null, clamp(seg.kg * (year < 1975 ? 0.8 : 1) * noise(0.12), 400, 1500), 300, 2500);
-    kmh = pick(wdKmh, fromText.kmh, clamp(80 + 10.5 * Math.sqrt(hp) * noise(0.05), 150, 400), 100, 500);
+    hp = pick(exact?.[0], wdHp, inf.hp, fromText.hp, clamp((100 + era * 4.5) * seg.power * boost * noise(0.12), 60, 1100), 40, 2000);
+    kg = pick(exact?.[1], it.mass, inf.kg, fromText.kg, clamp(seg.kg * (year < 1975 ? 0.8 : 1) * noise(0.12), 400, 1500), 300, 2500);
+    kmh = pick(exact?.[2], wdKmh, inf.kmh, fromText.kmh, clamp(80 + 10.5 * Math.sqrt(hp) * noise(0.05), 150, 400), 100, 500);
   } else {
-    hp = pick(wdHp, fromText.hp, clamp((40 + era * 1.4) * seg.power * boost * noise(0.12), 25, 1600), 10, 2000);
-    kg = pick(it.mass, null, clamp((seg.kg + Math.max(0, year - 1990) * 4) * noise(0.12), 450, 3000), 300, 4000);
-    kmh = pick(wdKmh, fromText.kmh, clamp(60 + 11.5 * Math.sqrt(hp) * noise(0.05), 90, 420), 40, 500);
+    hp = pick(exact?.[0], wdHp, inf.hp, fromText.hp, clamp((40 + era * 1.4) * seg.power * boost * noise(0.12), 25, 1600), 10, 2100);
+    kg = pick(exact?.[1], it.mass, inf.kg, fromText.kg, clamp((seg.kg + Math.max(0, year - 1990) * 4) * noise(0.12), 450, 3000), 300, 4000);
+    kmh = pick(exact?.[2], wdKmh, inf.kmh, fromText.kmh, clamp(60 + 11.5 * Math.sqrt(hp) * noise(0.05), 90, 420), 40, 500);
   }
   return {
     power_hp: Math.round(hp),
@@ -628,22 +767,26 @@ async function main() {
     if (it.missing || !it.rarity) continue;
     const old = known.get(it.qid);
     const rnd = seeded(it.qid + ":look");
-    const rarity = old?.rarity ?? it.rarity;
+    // Corrige aussi la rareté d'une 125/150/250cc qui avait échappé au plafond.
+    const cap = rarityCap(it);
+    const rarity = RARITIES[Math.max(RARITIES.indexOf(old?.rarity ?? it.rarity), RARITIES.indexOf(cap))];
     const [lo, hi] = VALUE_BAND[rarity];
-    const base = old ?? {
-      id: nextId++,
-      name: it.name.slice(0, 80),
+    const cleanName = (NAME_FIX[it.qid] || it.name).slice(0, 80);
+    const computedStats = stats(it, rarity);
+    cards.push({
+      id: old?.id ?? nextId++,
+      name: cleanName,
       rarity,
-      ...stats(it, rarity),
-      market_value: Math.round((lo + (hi - lo) * (it.bandPos ?? 0.5)) / 100) * 100,
+      ...computedStats,
+      market_value:
+        old && old.rarity === rarity
+          ? old.market_value
+          : Math.round((lo + (hi - lo) * (it.bandPos ?? 0.5)) / 100) * 100,
       division: it.division,
-      color: PALETTE[Math.floor(rnd() * PALETTE.length)],
+      color: old?.color ?? PALETTE[Math.floor(rnd() * PALETTE.length)],
       shape: it.division === "Moto" ? "moto" : it.division === "Compétition" ? "race" : RARITIES.indexOf(rarity) <= 2 ? "coupe" : "hatch",
       lore: lore(it),
       category: CATEGORY[it.division],
-    };
-    cards.push({
-      ...base,
       wikidata_id: it.qid,
       brand: it.brand ?? null,
       image_url: imageUrl(it.file),
