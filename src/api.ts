@@ -83,9 +83,33 @@ export async function login() {
   if (!supabase) return;
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: location.origin + "/" },
+    options: { redirectTo: location.origin + location.pathname },
   });
   if (error) throw Error(error.message);
+}
+export async function loginEmail(
+  email: string,
+  password: string,
+  username?: string,
+): Promise<string | null> {
+  if (!supabase) return null;
+  if (username) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name: username.trim() || "Pilote" },
+        emailRedirectTo: location.origin + location.pathname,
+      },
+    });
+    if (error) throw Error(error.message);
+    return data.session
+      ? null
+      : "Vérifie ta boîte mail et clique sur le lien de confirmation pour entrer au paddock.";
+  }
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw Error(error.message);
+  return null;
 }
 export async function logout() {
   if (supabase) {

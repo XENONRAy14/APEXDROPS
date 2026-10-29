@@ -2278,6 +2278,49 @@ td strong {
   min-height: 580px;
 }
 
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 390px;
+  margin: 18px 0 12px;
+  padding: 16px;
+  background: #0f1420;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #090c14;
+  border-radius: 9px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.auth-tabs button {
+  padding: 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.auth-tabs button.active {
+  background: #1a2234;
+  color: #f8fafc;
+}
+
+.auth-form input {
+  background: #090c14;
+  border: 1px solid #263147;
+  border-radius: 10px;
+  padding: 11px 13px;
+  color: #f8fafc;
+  font-size: 13px;
+}
+
 .load-more {
   display: flex;
   margin: 30px auto;

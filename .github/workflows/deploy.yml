@@ -29,8 +29,8 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://urzmiklsrsloaokhgwbl.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_JkgUZh8n-Q9aErcvAvsE6Q_yLEpUrsF' }}
           VITE_OAUTH_PROVIDER: ${{ vars.VITE_OAUTH_PROVIDER || 'discord' }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -21,6 +21,7 @@ import {
   fetchState,
   isDemo,
   login,
+  loginEmail,
   logout,
   providerName,
   supabase,
@@ -101,7 +102,11 @@ export default function App() {
     [page, setPage] = useState(1),
     [refCode, setRefCode] = useState(""),
     [account, setAccount] = useState(false),
-    [signedIn, setSignedIn] = useState(isDemo);
+    [signedIn, setSignedIn] = useState(isDemo),
+    [signup, setSignup] = useState(true),
+    [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [pseudo, setPseudo] = useState("");
   const lock = useRef(false),
     epoch = useRef(0);
 
@@ -439,11 +444,78 @@ export default function App() {
                   Collectionne les voitures qui te font vibrer. Ouvre tes
                   boosters, échange tes cartes et défie les passionnés.
                 </p>
+                <form
+                  className="auth-form"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setBusy(true);
+                    setError("");
+                    try {
+                      const msg = await loginEmail(
+                        email,
+                        password,
+                        signup ? pseudo : undefined,
+                      );
+                      if (msg) setToast(msg);
+                    } catch (err) {
+                      setError(
+                        err instanceof Error ? err.message : "Connexion impossible.",
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <div className="auth-tabs">
+                    <button
+                      type="button"
+                      className={signup ? "active" : ""}
+                      onClick={() => setSignup(true)}
+                    >
+                      Créer un compte
+                    </button>
+                    <button
+                      type="button"
+                      className={!signup ? "active" : ""}
+                      onClick={() => setSignup(false)}
+                    >
+                      J’ai déjà un compte
+                    </button>
+                  </div>
+                  {signup && (
+                    <input
+                      type="text"
+                      placeholder="Pseudo pilote"
+                      maxLength={32}
+                      required
+                      value={pseudo}
+                      onChange={(e) => setPseudo(e.target.value)}
+                    />
+                  )}
+                  <input
+                    type="email"
+                    placeholder="Adresse e-mail"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Mot de passe (6 caractères min.)"
+                    minLength={6}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button className="btn primary full" disabled={busy}>
+                    {signup ? "Entrer au paddock" : "Se connecter"}
+                  </button>
+                </form>
                 <button
-                  className="btn primary"
+                  className="btn secondary"
                   onClick={() => void login().catch((e) => setError(e.message))}
                 >
-                  <Users size={18} /> Rejoindre avec {providerName}
+                  <Users size={18} /> Continuer avec {providerName}
                 </button>
                 <small>
                   2 boosters bonus + 5 000 crédits offerts. Aucun argent réel.
