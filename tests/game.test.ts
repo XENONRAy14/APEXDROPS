@@ -19,6 +19,7 @@ async function database() {
     "004_concurrency.sql",
     "005_catalog_schema.sql",
     "006_catalog_data.sql",
+    "007_security_hardening.sql",
   ])
     await db.exec(
       readFileSync(
@@ -337,6 +338,10 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
           /Prix autorisé/,
         );
         await action(db, "CREATE_DUEL", { cardId: u, bet: 1000 });
+        await assert.rejects(
+          action(db, "CREATE_DUEL", { cardId: u, bet: 1000 }),
+          /déjà engagés/,
+        );
         const d = (await snapshot(db)).duels.find(
           (d: any) => d.status === "OPEN",
         );
@@ -345,7 +350,12 @@ test("PostgreSQL migrations and authenticated transaction scenarios", async (t) 
           action(db, "CANCEL_DUEL", { id: d.id }),
           /appartient pas/,
         );
+        const bCode = (await snapshot(db)).profile.referral_code;
         await identity(db);
+        await assert.rejects(
+          action(db, "CLAIM_REFERRAL", { code: bCode }),
+          /croisé interdit/,
+        );
         await action(db, "CANCEL_DUEL", { id: d.id });
       },
     );
