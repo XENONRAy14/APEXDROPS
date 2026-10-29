@@ -18,8 +18,10 @@ Le dossier `dist/` est statique : dépose-le sur n'importe quel hébergeur (Verc
 
 1. Crée un projet sur https://supabase.com (région proche des joueurs, note le mot de passe DB).
 2. Dans **SQL Editor**, exécute les migrations **dans l'ordre** :
-   `supabase/migrations/001_base.sql` → `002_hardening.sql` → `003_catalog.sql` → `004_concurrency.sql` → `005_catalog_schema.sql` → `006_catalog_data.sql`
-   (006 est volumineux : colle-le en une fois, il est idempotent.)
+   `supabase/migrations/001_base.sql` → `002_hardening.sql` → `003_catalog.sql` → `004_concurrency.sql` → `005_catalog_schema.sql`
+   Puis le catalogue en 7 parties (le SQL Editor web refuse `006_catalog_data.sql` entier car >1 Mo) :
+   `006a_catalog_part1.sql` → `006b` → `006c` → `006d` → `006e` → `006f` → `006g`
+   (Sur `001`, clique **Run without RLS** quand Supabase demande — c'est `002` qui active le RLS.)
 3. Vérifie : `select count(*) from cards;` doit renvoyer 5513.
 
 ### 2. Auth OAuth (~10 min, compte requis)

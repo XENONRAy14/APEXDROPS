@@ -659,13 +659,23 @@ async function main() {
   mkdirSync(new URL("src/data/", ROOT), { recursive: true });
   writeFileSync(JSON_OUT, JSON.stringify(cards));
   writeFileSync(SQL_OUT, toSql(cards));
+  // Parties de ~1 400 cartes pour le SQL Editor web de Supabase (limite ~1 Mo).
+  const CHUNK = 900;
+  for (let i = 0, part = 0; i < cards.length; i += CHUNK, part++) {
+    const letter = String.fromCharCode(97 + part);
+    const slice = cards.slice(i, i + CHUNK);
+    writeFileSync(
+      new URL(`supabase/migrations/006${letter}_catalog_part${part + 1}.sql`, ROOT),
+      toSql(slice, i + CHUNK >= cards.length),
+    );
+  }
   const count = (k, val) => cards.filter((c) => c[k] === val).length;
   console.log(`\n${cards.length} cartes écrites.`);
   console.log("  " + Object.keys(CATEGORY).map((d) => `${d} ${count("division", d)}`).join(" · "));
   console.log("  " + RARITIES.map((r) => `${r} ${count("rarity", r)}`).join(" · "));
 }
 
-function toSql(cards) {
+function toSql(cards, finalize = true) {
   const q = (s) => (s == null ? "NULL" : `'${String(s).replace(/'/g, "''")}'`);
   const cols = "id,name,category,rarity,power_hp,weight_kg,top_speed_kmh,handling_score,year,market_value,image_url,lore,division,color,shape,wikidata_id,brand,image_page,image_credit";
   const rows = cards.map(
@@ -683,9 +693,7 @@ BEGIN;
 INSERT INTO public.cards(${cols}) VALUES
 ${rows.join(",\n")}
 ON CONFLICT(id) DO UPDATE SET ${set};
-SELECT setval(pg_get_serial_sequence('public.cards','id'),(SELECT max(id) FROM public.cards));
-UPDATE public.profiles p SET collection_score=(SELECT coalesce(sum(c.market_value::bigint*u.quantity*CASE WHEN u.is_foil THEN 2.5 ELSE 1 END),0)::bigint FROM public.user_cards u JOIN public.cards c ON c.id=u.card_id WHERE u.user_id=p.id);
-COMMIT;
+${finalize ? `SELECT setval(pg_get_serial_sequence('public.cards','id'),(SELECT max(id) FROM public.cards));\nUPDATE public.profiles p SET collection_score=(SELECT coalesce(sum(c.market_value::bigint*u.quantity*CASE WHEN u.is_foil THEN 2.5 ELSE 1 END),0)::bigint FROM public.user_cards u JOIN public.cards c ON c.id=u.card_id WHERE u.user_id=p.id);\n` : ""}COMMIT;
 `;
 }
 
