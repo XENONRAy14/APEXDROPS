@@ -4,6 +4,7 @@ import {
   CarFront,
   Check,
   ChevronRight,
+  Download,
   Flag,
   Gauge,
   HelpCircle,
@@ -108,7 +109,10 @@ export default function App() {
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [pseudo, setPseudo] = useState(""),
-    [oauthReady, setOauthReady] = useState(false);
+    [oauthReady, setOauthReady] = useState(false),
+    [installPrompt, setInstallPrompt] = useState<
+      (Event & { prompt: () => Promise<void> }) | null
+    >(null);
   const lock = useRef(false),
     epoch = useRef(0);
 
@@ -182,7 +186,15 @@ export default function App() {
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    const onInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as Event & { prompt: () => Promise<void> });
+    };
+    window.addEventListener("beforeinstallprompt", onInstall);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("beforeinstallprompt", onInstall);
+    };
   }, []);
 
   useEffect(() => {
@@ -365,6 +377,20 @@ export default function App() {
           <span>SAISON 01 / ORIGINS</span>
         </div>
         <div className="sidebar-bottom">
+          <button
+            onClick={() => {
+              if (installPrompt) {
+                void installPrompt.prompt();
+                setInstallPrompt(null);
+              } else {
+                setToast(
+                  "Dans le menu du navigateur : « Installer l’application » ou « Sur l’écran d’accueil ».",
+                );
+              }
+            }}
+          >
+            <Download size={18} /> Installer l’app
+          </button>
           <button onClick={() => setGuide(true)}>
             <HelpCircle size={18} /> Comment jouer
           </button>
